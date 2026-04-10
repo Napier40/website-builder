@@ -1,96 +1,84 @@
 """
-AuditLog Model
-Records all significant actions for compliance and debugging
+Audit Log model — SQLAlchemy/SQLite
 """
 import logging
 from datetime import datetime, timezone
-from bson import ObjectId
-from app.database import get_db
+from app.database import db
 
 logger = logging.getLogger(__name__)
 
-VALID_ACTIONS = [
-    'LOGIN', 'LOGOUT', 'REGISTER',
-    'CREATE', 'READ', 'UPDATE', 'DELETE',
-    'PUBLISH', 'UNPUBLISH',
-    'SUBSCRIBE', 'UNSUBSCRIBE',
-    'PAYMENT', 'REFUND',
-    'ADMIN_ACTION', 'MODERATION', 'CONTENT_OVERRIDE',
-    'PLUGIN_ACTION', 'TEMPLATE_ACTION'
-]
+VALID_ACTIONS = {
+    'LOGIN', 'LOGOUT', 'REGISTER', 'CREATE', 'UPDATE', 'DELETE',
+    'PUBLISH', 'UNPUBLISH', 'ADMIN_ACTION', 'MODERATION',
+    'CONTENT_OVERRIDE', 'SUBSCRIPTION_CHANGE', 'PAYMENT',
+}
 
 
-class AuditLogModel:
-    """Audit log model for tracking all user and admin actions."""
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
 
-    COLLECTION = 'audit_logs'
+    id             = db.Column(db.Integer, primary_key=True)
+    user_id        = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'),
+                               nullable=True, index=True)
+    action         = db.Column(db.String(50),  nullable=False, index=True)
+    resource_model = db.Column(db.String(50),  nullable=True)
+    resource_id    = db.Column(db.String(50),  nullable=True)
+    description    = db.Column(db.Text,        nullable=True)
+    ip_address     = db.Column(db.String(50),  nullable=True)
+    user_agent     = db.Column(db.String(255), nullable=True)
+    timestamp      = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     @classmethod
-    def get_collection(cls):
-        return get_db()[cls.COLLECTION]
-
-    @classmethod
-    def create_log(cls,
-                   user_id: str,
-                   action: str,
-                   resource: str,
-                   resource_id: str = None,
-                   resource_model: str = None,
-                   previous_state: dict = None,
-                   new_state: dict = None,
-                   details: dict = None,
-                   ip_address: str = None,
-                   user_agent: str = None) -> dict | None:
-        """
-        Create an audit log entry. Failures are logged but never raise exceptions
-        so they don't interrupt the main application flow.
-        """
+    def create_log(cls, user_id, action, resource_model=None, resource_id=None,
+                   description=None, ip_address=None, user_agent=None):
+        """Create an audit log entry. Failures are silently swallowed to avoid disrupting the main flow."""
         try:
-            doc = {
-                'user': ObjectId(user_id) if user_id else None,
-                'action': action if action in VALID_ACTIONS else 'UPDATE',
-                'resource': resource,
-                'resourceId': ObjectId(resource_id) if resource_id else None,
-                'resourceModel': resource_model,
-                'previousState': previous_state,
-                'newState': new_state,
-                'details': details or {},
-                'ipAddress': ip_address,
-                'userAgent': user_agent,
-                'timestamp': datetime.now(timezone.utc)
-            }
-            result = cls.get_collection().insert_one(doc)
-            doc['_id'] = result.inserted_id
-            return cls.serialize(doc)
+            log = cls(
+                user_id=user_id,
+                action=action.upper(),
+                resource_model=resource_model,
+                resource_id=str(resource_id) if resource_id else None,
+                description=description,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            db.session.add(log)
+            db.session.commit()
+            return log
         except Exception as e:
-            logger.warning(f"Audit log creation failed (non-critical): {e}")
+            db.session.rollback()
+            logger.warning(f"⚠️  Audit log creation failed (non-fatal): {e}")
             return None
 
     @classmethod
-    def find_all(cls, query: dict = None, skip: int = 0, limit: int = 20,
-                 sort_field: str = 'timestamp', sort_dir: int = -1) -> tuple[list, int]:
-        collection = cls.get_collection()
-        query = query or {}
-        total = collection.count_documents(query)
-        cursor = collection.find(query).sort(sort_field, sort_dir).skip(skip).limit(limit)
-        return [cls.serialize(doc) for doc in cursor], total
+    def find_all(cls, page=1, limit=50, action=None, user_id=None):
+        q = cls.query
+        if action:
+            q = q.filter_by(action=action.upper())
+        if user_id:
+            q = q.filter_by(user_id=user_id)
+        total = q.count()
+        items = q.order_by(cls.timestamp.desc()).offset((page - 1) * limit).limit(limit).all()
+        return items, total
 
     @classmethod
-    def find_by_user(cls, user_id: str, limit: int = 10) -> list:
-        cursor = cls.get_collection() \
-            .find({'user': ObjectId(user_id)}) \
-            .sort('timestamp', -1) \
-            .limit(limit)
-        return [cls.serialize(doc) for doc in cursor]
+    def find_by_user(cls, user_id, limit=20):
+        return cls.query.filter_by(user_id=user_id)\
+                        .order_by(cls.timestamp.desc())\
+                        .limit(limit).all()
 
-    @classmethod
-    def serialize(cls, doc: dict) -> dict:
-        if not doc:
-            return doc
-        d = dict(doc)
-        for field in ('_id', 'user', 'resourceId'):
-            if field in d and isinstance(d[field], ObjectId):
-                d[field] = str(d[field])
-        if 'timestamp' in d and isinstance(d['timestamp'], datetime):
-            d['timestamp'] = d['timestamp'].isoformat()
-        return d
+    def to_dict(self):
+        return {
+            'id':            self.id,
+            'userId':        self.user_id,
+            'action':        self.action,
+            'resourceModel': self.resource_model,
+            'resourceId':    self.resource_id,
+            'description':   self.description,
+            'ipAddress':     self.ip_address,
+            'userAgent':     self.user_agent,
+            'timestamp':     self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    def __repr__(self):
+        return f'<AuditLog {self.action} user={self.user_id}>'

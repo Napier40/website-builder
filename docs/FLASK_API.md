@@ -1,26 +1,32 @@
 # Website Builder - Flask API Documentation
 
-**Version:** 2.0.0 (Python Flask)  
+**Version:** 3.0.0 (Python Flask + SQLite)  
 **Base URL:** `http://localhost:5000/api`  
-**Authentication:** JWT Bearer Token
+**Authentication:** JWT Bearer Token  
+**Database:** SQLite (via SQLAlchemy 2.0)
 
 ---
 
 ## Table of Contents
 1. [Authentication](#authentication)
-2. [Websites](#websites)
-3. [Subscriptions](#subscriptions)
-4. [Payments](#payments)
-5. [Templates](#templates)
-6. [Admin](#admin)
-7. [Plugins](#plugins)
-8. [Error Responses](#error-responses)
+2. [Users](#users)
+3. [Websites](#websites)
+4. [Subscriptions](#subscriptions)
+5. [Payments](#payments)
+6. [Templates](#templates)
+7. [Admin](#admin)
+8. [Plugins](#plugins)
+9. [Error Responses](#error-responses)
 
 ---
 
 ## Authentication
 
 All protected routes require the `Authorization: Bearer <token>` header.
+
+> **Note:** IDs are integers (SQLite auto-increment), not MongoDB ObjectIds.
+
+---
 
 ### POST /api/auth/register
 Register a new user account.
@@ -41,15 +47,20 @@ Register a new user account.
   "message": "Account created successfully",
   "token": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
-    "_id": "64f1a2b3c4d5e6f7a8b9c0d1",
+    "id": 1,
     "name": "John Doe",
     "email": "john@example.com",
     "role": "user",
-    "subscriptionStatus": "none",
-    "isActive": true
+    "subscriptionType": "free",
+    "subscriptionStatus": "active",
+    "createdAt": "2025-01-15T10:30:00"
   }
 }
 ```
+
+**Errors:**
+- `400` — Missing required fields, invalid email, password too short (<8 chars)
+- `409` — Email already registered
 
 ---
 
@@ -70,9 +81,20 @@ Authenticate and receive a JWT token.
   "success": true,
   "message": "Login successful",
   "token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": { ... }
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "user",
+    "subscriptionType": "free",
+    "subscriptionStatus": "active"
+  }
 }
 ```
+
+**Errors:**
+- `400` — Missing fields
+- `401` — Invalid email or password
 
 ---
 
@@ -83,26 +105,44 @@ Get the current authenticated user's profile.
 ```json
 {
   "success": true,
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "user",
+    "subscriptionType": "free",
+    "subscriptionStatus": "active",
+    "stripeCustomerId": null,
+    "createdAt": "2025-01-15T10:30:00",
+    "updatedAt": "2025-01-15T10:30:00"
+  }
+}
+```
+
+---
+
+### PUT /api/auth/me *(Private)*
+Update the current user's profile.
+
+**Body (all fields optional):**
+```json
+{
+  "name": "Jane Doe"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Profile updated",
   "user": { ... }
 }
 ```
 
 ---
 
-### PUT /api/auth/profile *(Private)*
-Update the current user's name or email.
-
-**Body:**
-```json
-{
-  "name": "Updated Name",
-  "email": "newemail@example.com"
-}
-```
-
----
-
-### PUT /api/auth/change-password *(Private)*
+### PUT /api/auth/me/password *(Private)*
 Change the current user's password.
 
 **Body:**
@@ -113,86 +153,184 @@ Change the current user's password.
 }
 ```
 
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Password updated successfully"
+}
+```
+
+**Errors:**
+- `400` — New password too short, missing fields
+- `401` — Current password incorrect
+
+---
+
+## Users
+
+### GET /api/users/profile *(Private)*
+Alias for `GET /api/auth/me`.
+
+### PUT /api/users/profile *(Private)*
+Alias for `PUT /api/auth/me`.
+
 ---
 
 ## Websites
 
 ### GET /api/websites *(Private)*
-Get all websites for the current user.
+List the current user's websites (paginated).
+
+**Query params:** `page` (default 1), `limit` (default 10)
 
 **Response 200:**
 ```json
 {
   "success": true,
-  "count": 2,
   "websites": [
     {
-      "_id": "...",
-      "name": "My Site",
-      "subdomain": "my-site",
+      "id": 1,
+      "name": "My Portfolio",
+      "subdomain": "my-portfolio",
+      "customDomain": null,
+      "userId": 1,
+      "template": "blank",
       "isPublished": false,
-      "pages": [...],
-      "settings": {...}
+      "moderationStatus": "pending",
+      "description": null,
+      "pages": [
+        {
+          "id": 1,
+          "title": "Home",
+          "slug": "home",
+          "content": "<h1>Welcome to my website</h1>",
+          "order": 0,
+          "createdAt": "2025-01-15T10:30:00",
+          "updatedAt": "2025-01-15T10:30:00"
+        }
+      ],
+      "adminOverride": null,
+      "createdAt": "2025-01-15T10:30:00",
+      "updatedAt": "2025-01-15T10:30:00"
     }
-  ]
+  ],
+  "total": 1,
+  "page": 1,
+  "pages": 1
 }
 ```
 
 ---
 
 ### POST /api/websites *(Private)*
-Create a new website.
+Create a new website. Free plan users are limited to 1 website.
 
 **Body:**
 ```json
 {
-  "name": "My Awesome Site",
-  "subdomain": "my-awesome-site",
-  "template": "default"
+  "name": "My Portfolio",
+  "subdomain": "my-portfolio",
+  "template": "blank"
 }
 ```
 
-**Subdomain rules:** 3-63 chars, lowercase letters/digits/hyphens only, cannot start/end with hyphen.
+**Response 201:**
+```json
+{
+  "success": true,
+  "message": "Website created successfully",
+  "website": { ... }
+}
+```
+
+**Errors:**
+- `400` — Missing name/subdomain, invalid subdomain format
+- `409` — Subdomain already taken
+- `403` — Website limit reached for current plan
+
+**Subdomain rules:** 3–50 characters, lowercase letters, digits, hyphens only. No leading/trailing hyphens.
 
 ---
 
 ### GET /api/websites/:id *(Private)*
-Get a specific website by ID. Must be the owner or admin.
+Get a single website by integer ID.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "website": { ... }
+}
+```
+
+**Errors:**
+- `404` — Website not found
+- `403` — Not the owner (non-admins)
 
 ---
 
 ### PUT /api/websites/:id *(Private)*
-Update website name, domain, template, or settings.
+Update website metadata.
 
-**Body:**
+**Body (all optional):**
 ```json
 {
-  "name": "New Name",
-  "customDomain": "www.mysite.com",
-  "settings": {
-    "theme": {
-      "primaryColor": "#e74c3c"
-    }
-  }
+  "name": "Updated Name",
+  "description": "My updated description",
+  "customDomain": "www.mysite.com"
 }
 ```
 
-> ⚠️ Custom domains require **Premium** or **Enterprise** subscription.
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Website updated",
+  "website": { ... }
+}
+```
 
 ---
 
 ### DELETE /api/websites/:id *(Private)*
-Delete a website permanently.
+Delete a website and all its pages.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Website deleted"
+}
+```
 
 ---
 
 ### PUT /api/websites/:id/publish *(Private)*
-Publish a website (make it live).
+Publish a website.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Website published",
+  "website": { ... }
+}
+```
 
 ---
 
 ### PUT /api/websites/:id/unpublish *(Private)*
 Unpublish a website.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Website unpublished",
+  "website": { ... }
+}
+```
 
 ---
 
@@ -202,53 +340,125 @@ Add a new page to a website.
 **Body:**
 ```json
 {
-  "title": "About Us",
+  "title": "About",
   "slug": "about",
-  "content": {
-    "sections": [
-      {
-        "type": "hero",
-        "heading": "About Us"
-      }
-    ]
-  },
-  "meta": {
-    "description": "About our company",
-    "keywords": "about, company"
+  "content": "<h1>About Me</h1>"
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "message": "Page added",
+  "page": {
+    "id": 2,
+    "title": "About",
+    "slug": "about",
+    "content": "<h1>About Me</h1>",
+    "order": 1,
+    "createdAt": "2025-01-15T11:00:00",
+    "updatedAt": "2025-01-15T11:00:00"
   }
 }
 ```
 
 ---
 
-### PUT /api/websites/:id/pages/:pageId *(Private)*
+### PUT /api/websites/:id/pages/:page_id *(Private)*
 Update an existing page.
 
----
-
-### DELETE /api/websites/:id/pages/:pageId *(Private)*
-Delete a page. The **home** page cannot be deleted.
-
----
-
-## Subscriptions
-
-### GET /api/subscriptions *(Public)*
-Get all available subscription plans.
+**Body (all optional):**
+```json
+{
+  "title": "About Us",
+  "slug": "about-us",
+  "content": "<h1>About Us</h1>",
+  "order": 2
+}
+```
 
 **Response 200:**
 ```json
 {
   "success": true,
-  "plans": [
+  "message": "Page updated",
+  "page": { ... }
+}
+```
+
+---
+
+### DELETE /api/websites/:id/pages/:page_id *(Private)*
+Delete a page from a website.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Page deleted"
+}
+```
+
+---
+
+## Subscriptions
+
+### GET /api/subscriptions
+List all available subscription plans (public).
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "subscriptions": [
     {
+      "id": 1,
+      "name": "free",
+      "displayName": "Free",
+      "price": 0.0,
+      "currency": "usd",
+      "interval": "month",
+      "features": ["1 website", "Basic templates", "Subdomain hosting"],
+      "maxWebsites": 1,
+      "hasCustomDomain": false,
+      "isActive": true
+    },
+    {
+      "id": 2,
       "name": "basic",
       "displayName": "Basic",
       "price": 9.99,
       "currency": "usd",
-      "websiteLimit": 3,
-      "customDomain": false,
-      "features": ["Up to 3 websites", "1GB storage", ...]
+      "interval": "month",
+      "features": ["3 websites", "All templates", "Subdomain hosting", "Email support"],
+      "maxWebsites": 3,
+      "hasCustomDomain": false,
+      "isActive": true
+    },
+    {
+      "id": 3,
+      "name": "premium",
+      "displayName": "Premium",
+      "price": 29.99,
+      "currency": "usd",
+      "interval": "month",
+      "features": ["10 websites", "All templates", "Custom domains", "Priority support", "Analytics"],
+      "maxWebsites": 10,
+      "hasCustomDomain": true,
+      "isActive": true
+    },
+    {
+      "id": 4,
+      "name": "enterprise",
+      "displayName": "Enterprise",
+      "price": 99.99,
+      "currency": "usd",
+      "interval": "month",
+      "features": ["Unlimited websites", "All templates", "Custom domains", "Dedicated support", "Advanced analytics", "White labeling"],
+      "maxWebsites": -1,
+      "hasCustomDomain": true,
+      "isActive": true
     }
   ]
 }
@@ -256,26 +466,41 @@ Get all available subscription plans.
 
 ---
 
-### GET /api/subscriptions/current *(Private)*
-Get the current user's active subscription.
-
----
-
 ### POST /api/subscriptions/subscribe *(Private)*
-Subscribe to a plan via Stripe.
+Subscribe the current user to a plan.
 
 **Body:**
 ```json
 {
-  "planName": "basic",
+  "plan": "premium",
   "paymentMethodId": "pm_card_visa"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Subscribed to premium plan",
+  "subscription": {
+    "type": "premium",
+    "status": "active"
+  }
 }
 ```
 
 ---
 
 ### POST /api/subscriptions/cancel *(Private)*
-Cancel the current user's active subscription.
+Cancel the current user's subscription (reverts to free).
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Subscription cancelled"
+}
+```
 
 ---
 
@@ -287,9 +512,8 @@ Create a Stripe PaymentIntent.
 **Body:**
 ```json
 {
-  "amount": 9.99,
-  "currency": "usd",
-  "description": "Website Builder Basic Plan"
+  "amount": 2999,
+  "currency": "usd"
 }
 ```
 
@@ -297,73 +521,83 @@ Create a Stripe PaymentIntent.
 ```json
 {
   "success": true,
-  "clientSecret": "pi_..._secret_...",
-  "paymentId": "...",
-  "intentId": "pi_..."
+  "clientSecret": "pi_3N...._secret_...",
+  "paymentIntentId": "pi_3N...."
 }
 ```
 
 ---
 
 ### GET /api/payments/history *(Private)*
-Get the current user's payment history with pagination.
+Get the current user's payment history.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "payments": [
+    {
+      "id": 1,
+      "amount": 2999,
+      "currency": "usd",
+      "status": "succeeded",
+      "stripePaymentIntentId": "pi_3N....",
+      "description": "Premium plan subscription",
+      "createdAt": "2025-01-15T10:30:00"
+    }
+  ],
+  "total": 1
+}
+```
 
 ---
 
 ### POST /api/payments/webhook
-Stripe webhook endpoint. Handles:
-- `payment_intent.succeeded` → marks payment completed
-- `payment_intent.payment_failed` → marks payment failed
-- `customer.subscription.deleted` → resets user subscription to 'none'
+Stripe webhook endpoint (public, validated by Stripe signature).
+
+**Headers:** `Stripe-Signature: ...`
 
 ---
 
 ## Templates
 
-### GET /api/templates *(Public)*
-Get all public templates.
+### GET /api/templates
+List all available templates (public).
 
-**Query params:** `category`, `isPremium`, `search`, `page`, `limit`
+**Query params:** `category` (optional filter)
 
----
-
-### GET /api/templates/categories *(Public)*
-Get list of all template categories.
-
----
-
-### GET /api/templates/tags *(Public)*
-Get list of all template tags.
-
----
-
-### GET /api/templates/:id *(Public)*
-Get a specific template.
-
----
-
-### POST /api/templates *(Admin)*
-Create a new template.
-
----
-
-### PUT /api/templates/:id *(Admin)*
-Update a template.
+**Response 200:**
+```json
+{
+  "success": true,
+  "templates": [
+    {
+      "id": 1,
+      "name": "blank",
+      "displayName": "Blank",
+      "description": "Start with a clean slate",
+      "category": "basic",
+      "thumbnail": null,
+      "tags": ["minimal", "blank"],
+      "isPremium": false,
+      "isActive": true
+    }
+  ]
+}
+```
 
 ---
 
-### DELETE /api/templates/:id *(Admin)*
-Delete a template.
+### GET /api/templates/:id
+Get a single template by integer ID.
 
----
-
-### POST /api/templates/save-from-website/:websiteId *(Private)*
-Save a website as a reusable template.
-
----
-
-### PUT /api/templates/:templateId/apply/:websiteId *(Private)*
-Apply a template to a website.
+**Response 200:**
+```json
+{
+  "success": true,
+  "template": { ... }
+}
+```
 
 ---
 
@@ -372,24 +606,30 @@ Apply a template to a website.
 > All admin routes require `role: admin`.
 
 ### GET /api/admin/dashboard *(Admin)*
-Get comprehensive platform statistics.
+Get platform statistics.
 
 **Response 200:**
 ```json
 {
   "success": true,
-  "data": {
+  "stats": {
     "users": {
       "total": 150,
-      "new30Days": 12,
-      "subscriptions": [
-        {"_id": "none", "count": 80},
-        {"_id": "basic", "count": 45}
-      ]
+      "admins": 2
     },
-    "websites": {"total": 320, "published": 180},
-    "revenue": {"monthly": 1250.75},
-    "moderation": [{"_id": "pending", "count": 3}]
+    "websites": {
+      "total": 320,
+      "published": 180
+    },
+    "moderation": {
+      "pending": 5
+    },
+    "subscriptions": {
+      "free": 100,
+      "basic": 30,
+      "premium": 15,
+      "enterprise": 5
+    }
   }
 }
 ```
@@ -397,150 +637,327 @@ Get comprehensive platform statistics.
 ---
 
 ### GET /api/admin/users *(Admin)*
-Get all users with filtering and pagination.
+List all users with search and pagination.
 
-**Query params:** `search`, `role`, `subscriptionStatus`, `page`, `limit`, `sort`
+**Query params:** `page`, `limit`, `search`, `role`, `sort_by`, `sort_dir`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "users": [ { ... }, { ... } ],
+  "total": 150,
+  "page": 1,
+  "pages": 15
+}
+```
 
 ---
 
 ### GET /api/admin/users/:id *(Admin)*
-Get a user with their websites, payments, and audit logs.
+Get a single user by integer ID.
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "user": { ... }
+}
+```
 
 ---
 
 ### PUT /api/admin/users/:id *(Admin)*
-Update any user field (role, subscriptionStatus, isActive, name, email).
+Update a user's role or subscription.
+
+**Body (all optional):**
+```json
+{
+  "role": "admin",
+  "subscriptionType": "premium",
+  "subscriptionStatus": "active"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "User updated",
+  "user": { ... }
+}
+```
 
 ---
 
 ### DELETE /api/admin/users/:id *(Admin)*
-Delete a user account permanently.
+Delete a user and all their data.
+
+**Errors:**
+- `400` — Cannot delete your own account
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "User deleted"
+}
+```
 
 ---
 
 ### GET /api/admin/moderation *(Admin)*
-Get the content moderation queue.
+Get the moderation queue.
 
-**Query params:** `status` (pending/approved/rejected), `contentModel`, `page`, `limit`
+**Query params:** `page`, `limit`, `status` (`pending` | `approved` | `rejected`)
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "reports": [
+    {
+      "id": 1,
+      "contentId": "42",
+      "contentModel": "website",
+      "reporterId": 7,
+      "reason": "Inappropriate content",
+      "status": "pending",
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "reviewNotes": null,
+      "createdAt": "2025-01-15T10:30:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pages": 1
+}
+```
 
 ---
 
-### POST /api/admin/moderation *(Admin)*
-Flag content for moderation.
+### POST /api/admin/moderation *(Private)*
+Submit a moderation report (any authenticated user).
 
 **Body:**
 ```json
 {
-  "contentId": "website-id-here",
-  "contentModel": "Website",
-  "reason": "Contains inappropriate content"
+  "contentId": 42,
+  "contentModel": "website",
+  "reason": "Spam or inappropriate content"
+}
+```
+
+**Response 201:**
+```json
+{
+  "success": true,
+  "message": "Report submitted",
+  "report": { ... }
 }
 ```
 
 ---
 
 ### PUT /api/admin/moderation/:id *(Admin)*
-Process a moderation item (approve or reject).
+Review a moderation report.
 
 **Body:**
 ```json
 {
-  "status": "rejected",
-  "reason": "Violates terms of service",
-  "action": "content_removal",
-  "modifiedContent": null
+  "status": "approved",
+  "notes": "Content reviewed and approved"
+}
+```
+
+**Valid statuses:** `approved`, `rejected`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Moderation report reviewed",
+  "report": { ... }
 }
 ```
 
 ---
 
 ### PUT /api/admin/websites/:id/override *(Admin)*
-Override a website's page content directly.
+Admin override on a website (approve and optionally update content).
 
 **Body:**
 ```json
 {
-  "content": [
-    {
-      "title": "Home",
-      "slug": "home",
-      "content": {"sections": [...]},
-      "isPublished": true,
-      "meta": {}
-    }
-  ],
-  "reason": "Removed TOS-violating content"
+  "reason": "Content reviewed and approved by admin",
+  "moderationStatus": "approved"
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Admin override applied",
+  "website": { ... }
 }
 ```
 
 ---
 
-### DELETE /api/admin/websites/:id/delete-content *(Admin)*
-Delete an entire website as admin action.
+### DELETE /api/admin/websites/:id/content *(Admin)*
+Remove a website's page content (content moderation action).
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "message": "Website content removed"
+}
+```
 
 ---
 
 ### GET /api/admin/audit-logs *(Admin)*
-Get audit logs with filtering.
+Get the audit log trail.
 
-**Query params:** `user`, `action`, `resource`, `startDate`, `endDate`, `page`, `limit`
+**Query params:** `page`, `limit`, `user_id`, `action`, `resource`
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "id": 1,
+      "userId": 1,
+      "action": "login",
+      "resource": "auth",
+      "resourceId": null,
+      "details": {},
+      "ipAddress": "127.0.0.1",
+      "userAgent": "Mozilla/5.0 ...",
+      "createdAt": "2025-01-15T10:30:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pages": 1
+}
+```
 
 ---
 
 ## Plugins
 
-### GET /api/plugins *(Admin)*
-Get all registered plugins.
+### GET /api/plugins
+List all available plugins (public).
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "plugins": [
+    {
+      "id": 1,
+      "name": "seo-optimizer",
+      "displayName": "SEO Optimizer",
+      "description": "Optimize your website for search engines",
+      "version": "1.0.0",
+      "author": "Website Builder Team",
+      "isActive": true,
+      "isPremium": false
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/plugins/:id
+Get a single plugin by integer ID.
 
 ---
 
 ### POST /api/plugins *(Admin)*
-Register a new plugin.
+Create a new plugin.
+
+**Body:**
+```json
+{
+  "name": "my-plugin",
+  "displayName": "My Plugin",
+  "description": "A custom plugin",
+  "version": "1.0.0"
+}
+```
 
 ---
 
-### PUT /api/plugins/:id/toggle *(Admin)*
-Activate or deactivate a plugin.
+## Health Check
 
----
+### GET /api/health
+Public health check endpoint.
 
-### GET /api/plugins/hooks *(Admin)*
-Get all registered hooks and loaded plugins.
-
----
-
-### POST /api/plugins/hooks/:hookName/execute *(Admin)*
-Execute a specific plugin hook with data.
+**Response 200:**
+```json
+{
+  "status": "healthy",
+  "database": {
+    "engine": "SQLite",
+    "status": "connected"
+  },
+  "version": "3.0.0"
+}
+```
 
 ---
 
 ## Error Responses
 
-All error responses follow this format:
+All error responses follow a consistent format:
 
 ```json
 {
   "success": false,
-  "message": "Human-readable error description"
+  "error": "Human-readable error message"
 }
 ```
 
-| Status Code | Meaning |
-|-------------|---------|
-| 400 | Bad Request - missing/invalid fields |
-| 401 | Unauthorized - missing or invalid JWT |
-| 403 | Forbidden - insufficient role or subscription |
-| 404 | Not Found - resource doesn't exist |
-| 500 | Internal Server Error |
+### HTTP Status Codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | OK |
+| `201` | Created |
+| `400` | Bad Request — validation error or missing fields |
+| `401` | Unauthorized — missing or invalid JWT token |
+| `403` | Forbidden — insufficient role or subscription |
+| `404` | Not Found |
+| `409` | Conflict — duplicate entry (email, subdomain) |
+| `500` | Internal Server Error |
 
 ---
 
-## Subscription Limits
+## Data Types
 
-| Feature | Free | Basic ($9.99) | Premium ($29.99) | Enterprise ($99.99) |
-|---------|------|---------------|------------------|---------------------|
-| Websites | 1 | 3 | 10 | Unlimited |
-| Storage | - | 1 GB | 10 GB | 100 GB |
-| Custom Domain | ❌ | ❌ | ✅ | ✅ |
-| Analytics | ❌ | ❌ | ✅ | ✅ |
-| Priority Support | ❌ | ❌ | ❌ | ✅ |
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | integer | SQLite auto-increment primary key |
+| `createdAt` / `updatedAt` | ISO 8601 string | UTC datetime, e.g. `"2025-01-15T10:30:00"` |
+| `isPublished` | boolean | `true` / `false` |
+| `price` | float | Subscription price in USD |
+| `amount` | integer | Stripe amount in cents (e.g. `2999` = $29.99) |
+
+---
+
+## Database
+
+The backend uses **SQLite** via **SQLAlchemy 2.0** and **Flask-SQLAlchemy 3.1**.
+
+- **Development / Production:** `flask-backend/website_builder.db` (file-based, created automatically)
+- **Testing:** In-memory SQLite (`sqlite:///:memory:`) — no file created, wiped after each test
+- **No installation required** — SQLite is built into Python
+
+Tables: `users`, `websites`, `pages`, `subscriptions`, `payments`, `audit_logs`, `moderation`, `plugins`, `templates`

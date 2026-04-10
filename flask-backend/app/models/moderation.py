@@ -1,88 +1,80 @@
 """
-Moderation Model
-Tracks content moderation actions by administrators
+Moderation model — SQLAlchemy/SQLite
 """
 from datetime import datetime, timezone
-from bson import ObjectId
-from app.database import get_db
-
-VALID_STATUSES = ['pending', 'approved', 'rejected', 'under_review']
-VALID_ACTIONS = ['no_action', 'content_edited', 'content_removal', 'account_warning', 'account_suspension']
+from app.database import db
 
 
-class ModerationModel:
-    """Content moderation model."""
+class Moderation(db.Model):
+    __tablename__ = 'moderation'
 
-    COLLECTION = 'moderation'
+    id               = db.Column(db.Integer, primary_key=True)
+    content_id       = db.Column(db.String(50),  nullable=False)
+    content_model    = db.Column(db.String(50),  nullable=False, index=True)
+    reporter_id      = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'),
+                                 nullable=True)
+    reason           = db.Column(db.Text,        nullable=False)
+    status           = db.Column(db.String(20),  nullable=False, default='pending', index=True)
+    reviewed_by      = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'),
+                                 nullable=True)
+    reviewed_at      = db.Column(db.DateTime,    nullable=True)
+    review_notes     = db.Column(db.Text,        nullable=True)
+    original_content = db.Column(db.Text,        nullable=True)
+    created_at       = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at       = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                                 onupdate=lambda: datetime.now(timezone.utc))
 
-    @classmethod
-    def get_collection(cls):
-        return get_db()[cls.COLLECTION]
-
-    @classmethod
-    def create(cls, content_id: str, content_model: str,
-               reporter_id: str = None, reason: str = None,
-               original_content: dict = None) -> dict:
-        """Create a new moderation record."""
-        now = datetime.now(timezone.utc)
-        doc = {
-            'content': ObjectId(content_id),
-            'contentModel': content_model,
-            'reporter': ObjectId(reporter_id) if reporter_id else None,
-            'moderator': None,
-            'status': 'pending',
-            'reason': reason,
-            'action': 'no_action',
-            'originalContent': original_content,
-            'modifiedContent': None,
-            'notes': None,
-            'createdAt': now,
-            'updatedAt': now
-        }
-        result = cls.get_collection().insert_one(doc)
-        doc['_id'] = result.inserted_id
-        return cls.serialize(doc)
+    reviewer = db.relationship('User', foreign_keys='Moderation.reviewed_by', lazy=True)
 
     @classmethod
-    def find_by_id(cls, mod_id: str) -> dict | None:
-        try:
-            doc = cls.get_collection().find_one({'_id': ObjectId(mod_id)})
-            return cls.serialize(doc) if doc else None
-        except Exception:
-            return None
-
-    @classmethod
-    def find_all(cls, query: dict = None, skip: int = 0, limit: int = 10) -> tuple[list, int]:
-        collection = cls.get_collection()
-        query = query or {}
-        total = collection.count_documents(query)
-        cursor = collection.find(query).sort('createdAt', -1).skip(skip).limit(limit)
-        return [cls.serialize(doc) for doc in cursor], total
-
-    @classmethod
-    def update_by_id(cls, mod_id: str, updates: dict) -> dict | None:
-        updates['updatedAt'] = datetime.now(timezone.utc)
-        result = cls.get_collection().find_one_and_update(
-            {'_id': ObjectId(mod_id)},
-            {'$set': updates},
-            return_document=True
+    def create(cls, content_id, content_model, reporter_id, reason, original_content=None):
+        mod = cls(
+            content_id=str(content_id),
+            content_model=content_model,
+            reporter_id=reporter_id,
+            reason=reason,
+            original_content=original_content,
         )
-        return cls.serialize(result) if result else None
+        db.session.add(mod)
+        db.session.commit()
+        return mod
 
     @classmethod
-    def aggregate_stats(cls) -> list:
-        pipeline = [{'$group': {'_id': '$status', 'count': {'$sum': 1}}}]
-        return list(cls.get_collection().aggregate(pipeline))
+    def find_by_id(cls, mod_id):
+        return cls.query.get(int(mod_id))
 
     @classmethod
-    def serialize(cls, doc: dict) -> dict:
-        if not doc:
-            return doc
-        d = dict(doc)
-        for field in ('_id', 'content', 'reporter', 'moderator'):
-            if field in d and isinstance(d[field], ObjectId):
-                d[field] = str(d[field])
-        for key in ('createdAt', 'updatedAt'):
-            if key in d and isinstance(d[key], datetime):
-                d[key] = d[key].isoformat()
-        return d
+    def find_all(cls, page=1, limit=10, status=None):
+        q = cls.query
+        if status:
+            q = q.filter_by(status=status)
+        total = q.count()
+        items = q.order_by(cls.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+        return items, total
+
+    def review(self, admin_id, status, notes=''):
+        self.status      = status
+        self.reviewed_by = admin_id
+        self.reviewed_at = datetime.now(timezone.utc)
+        self.review_notes = notes
+        self.updated_at  = datetime.now(timezone.utc)
+        db.session.commit()
+
+    def to_dict(self):
+        return {
+            'id':              self.id,
+            'contentId':       self.content_id,
+            'contentModel':    self.content_model,
+            'reporterId':      self.reporter_id,
+            'reason':          self.reason,
+            'status':          self.status,
+            'reviewedBy':      self.reviewed_by,
+            'reviewedAt':      self.reviewed_at.isoformat() if self.reviewed_at else None,
+            'reviewNotes':     self.review_notes,
+            'originalContent': self.original_content,
+            'createdAt':       self.created_at.isoformat() if self.created_at else None,
+            'updatedAt':       self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f'<Moderation {self.id} {self.status}>'

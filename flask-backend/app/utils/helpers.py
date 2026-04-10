@@ -5,8 +5,22 @@ Common helper functions used across blueprints
 import math
 import re
 from datetime import datetime, timezone
-from bson import ObjectId
+from functools import wraps
 from flask import jsonify, request
+
+
+# ─── Database guard decorator ─────────────────────────────────────────────────
+
+def db_required(f):
+    """
+    Placeholder — kept for compatibility.
+    With SQLite this is never needed (DB is always available),
+    but the decorator is preserved so imports don't break.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ─── Response helpers ─────────────────────────────────────────────────────────
@@ -35,11 +49,11 @@ def paginated_response(items: list, total: int, page: int,
     """Build a paginated response with metadata."""
     body = {
         'success': True,
-        'count': len(items),
-        'total': total,
-        'page': page,
-        'pages': math.ceil(total / limit) if limit > 0 else 1,
-        'data': items
+        'count':   len(items),
+        'total':   total,
+        'page':    page,
+        'pages':   math.ceil(total / limit) if limit > 0 else 1,
+        'data':    items,
     }
     body.update(extra_fields)
     return jsonify(body), 200
@@ -66,16 +80,16 @@ def get_pagination_params(default_limit: int = 10, max_limit: int = 100):
     return page, limit, skip
 
 
-def get_sort_params(default_field: str = 'createdAt', default_dir: int = -1):
+def get_sort_params(default_field: str = 'created_at', default_dir: str = 'desc'):
     """
     Extract sort parameters from request query string.
-    Prefix field with '-' for descending, e.g. ?sort=-createdAt
+    Prefix field with '-' for descending, e.g. ?sort=-created_at
     Returns (sort_field, sort_direction).
     """
     sort = request.args.get('sort', default_field)
     if sort.startswith('-'):
-        return sort[1:], -1
-    return sort, default_dir if sort == default_field else 1
+        return sort[1:], 'desc'
+    return sort, 'asc' if sort != default_field else default_dir
 
 
 # ─── Validation helpers ───────────────────────────────────────────────────────
@@ -106,11 +120,13 @@ def validate_subdomain(subdomain: str) -> bool:
     - lowercase letters, digits, hyphens only
     - cannot start or end with hyphen
     """
-    pattern = r'^[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]$'
+    if len(subdomain) < 3 or len(subdomain) > 63:
+        return False
+    pattern = r'^[a-z0-9][a-z0-9\-]*[a-z0-9]$'
     return bool(re.match(pattern, subdomain.lower()))
 
 
-def validate_password(password: str) -> tuple[bool, str]:
+def validate_password(password: str) -> tuple:
     """
     Validate password strength.
     Returns (is_valid, error_message).
@@ -122,40 +138,7 @@ def validate_password(password: str) -> tuple[bool, str]:
     return True, ''
 
 
-def validate_object_id(id_str: str) -> bool:
-    """Check whether a string is a valid MongoDB ObjectId."""
-    try:
-        ObjectId(id_str)
-        return True
-    except Exception:
-        return False
-
-
-# ─── Serialization helpers ────────────────────────────────────────────────────
-
-def serialize_doc(doc: dict) -> dict:
-    """Recursively convert ObjectIds and datetimes in a dict to JSON-safe types."""
-    if not doc:
-        return doc
-    result = {}
-    for key, value in doc.items():
-        if isinstance(value, ObjectId):
-            result[key] = str(value)
-        elif isinstance(value, datetime):
-            result[key] = value.isoformat()
-        elif isinstance(value, dict):
-            result[key] = serialize_doc(value)
-        elif isinstance(value, list):
-            result[key] = [
-                serialize_doc(item) if isinstance(item, dict) else
-                str(item) if isinstance(item, ObjectId) else
-                item.isoformat() if isinstance(item, datetime) else item
-                for item in value
-            ]
-        else:
-            result[key] = value
-    return result
-
+# ─── Misc helpers ─────────────────────────────────────────────────────────────
 
 def get_client_ip() -> str:
     """Extract real client IP from request, considering proxies."""

@@ -1,119 +1,131 @@
 """
-MongoDB Database Connection Manager
-Uses PyMongo for direct MongoDB access
+Database initialisation using Flask-SQLAlchemy + SQLite.
+SQLite requires no separate installation — the .db file is created
+automatically on first run inside the flask-backend/ directory.
 """
 import logging
-from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from flask_sqlalchemy import SQLAlchemy
 
 logger = logging.getLogger(__name__)
 
-# Global database client and db reference
-_client = None
-_db = None
+# Single shared SQLAlchemy instance — imported by all models
+db = SQLAlchemy()
 
 
 def init_db(app):
     """
-    Initialize MongoDB connection using the Flask app config.
-    Stores client and db references as app extensions.
+    Bind the SQLAlchemy instance to the Flask app, create all tables,
+    and seed default data (subscription plans, templates).
     """
-    global _client, _db
+    db.init_app(app)
 
-    mongo_uri = app.config.get('MONGO_URI', 'mongodb://localhost:27017/website-builder')
-    db_name = app.config.get('MONGO_DBNAME', 'website-builder')
+    with app.app_context():
+        # Import all models so SQLAlchemy knows about them before create_all()
+        from app.models.user         import User          # noqa: F401
+        from app.models.website      import Website, Page # noqa: F401
+        from app.models.subscription import Subscription  # noqa: F401
+        from app.models.payment      import Payment       # noqa: F401
+        from app.models.audit_log    import AuditLog      # noqa: F401
+        from app.models.moderation   import Moderation    # noqa: F401
+        from app.models.plugin       import Plugin        # noqa: F401
+        from app.models.template     import Template      # noqa: F401
+
+        db.create_all()
+        logger.info("✅ Database tables created (SQLite)")
+
+        # Seed default data
+        _seed_subscriptions()
+        _seed_templates()
+
+    uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    if uri == 'sqlite:///:memory:':
+        logger.info("✅ Using in-memory SQLite database")
+    else:
+        # Extract readable path from URI
+        path = uri.replace('sqlite:///', '')
+        logger.info(f"✅ SQLite database ready at: {path}")
+
+
+def _seed_subscriptions():
+    """Insert default subscription plans if they don't exist yet."""
+    from app.models.subscription import Subscription
+
+    defaults = [
+        dict(name='free',       display_name='Free',
+             price=0.0,         currency='usd',
+             max_websites=1,    max_pages=5,
+             features='["1 website","5 pages","Basic templates","Community support"]',
+             is_active=True),
+        dict(name='premium',    display_name='Premium',
+             price=9.99,        currency='usd',
+             max_websites=5,    max_pages=50,
+             features='["5 websites","50 pages","Premium templates","Priority support","Custom domain"]',
+             is_active=True),
+        dict(name='enterprise', display_name='Enterprise',
+             price=29.99,       currency='usd',
+             max_websites=999,  max_pages=999,
+             features='["Unlimited websites","Unlimited pages","All templates","Dedicated support","Custom domain","API access"]',
+             is_active=True),
+    ]
+
+    for plan in defaults:
+        if not Subscription.query.filter_by(name=plan['name']).first():
+            db.session.add(Subscription(**plan))
 
     try:
-        _client = MongoClient(
-            mongo_uri,
-            serverSelectionTimeoutMS=5000,
-            connectTimeoutMS=5000,
-            socketTimeoutMS=10000
-        )
-        # Verify the connection
-        _client.admin.command('ping')
-        _db = _client[db_name]
-
-        # Store on app for access via current_app
-        app.db_client = _client
-        app.db = _db
-
-        logger.info(f"✅ MongoDB connected successfully to database: {db_name}")
-        _create_indexes(_db)
-        return _db
-
-    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-        logger.error(f"❌ MongoDB connection failed: {e}")
-        # Don't raise in testing mode - mongomock will be used
-        if not app.config.get('TESTING'):
-            raise
-
-
-def get_db():
-    """
-    Get the current database instance.
-    Returns the global db reference.
-    """
-    global _db
-    if _db is None:
-        raise RuntimeError("Database not initialized. Call init_db(app) first.")
-    return _db
-
-
-def close_db(app=None):
-    """Close the database connection."""
-    global _client, _db
-    if _client:
-        _client.close()
-        _client = None
-        _db = None
-        logger.info("MongoDB connection closed.")
-
-
-def _create_indexes(db):
-    """Create necessary MongoDB indexes for performance."""
-    try:
-        # Users collection indexes
-        db.users.create_index('email', unique=True)
-        db.users.create_index('role')
-        db.users.create_index('subscriptionStatus')
-        db.users.create_index('createdAt')
-
-        # Websites collection indexes
-        db.websites.create_index('subdomain', unique=True)
-        db.websites.create_index('user')
-        db.websites.create_index('isPublished')
-        db.websites.create_index('moderationStatus')
-        db.websites.create_index('createdAt')
-
-        # Subscriptions collection indexes
-        db.subscriptions.create_index('name', unique=True)
-
-        # Payments collection indexes
-        db.payments.create_index('user')
-        db.payments.create_index('stripePaymentIntentId')
-        db.payments.create_index('createdAt')
-
-        # Audit logs collection indexes
-        db.audit_logs.create_index('user')
-        db.audit_logs.create_index('action')
-        db.audit_logs.create_index('timestamp')
-        db.audit_logs.create_index('resourceModel')
-
-        # Moderation collection indexes
-        db.moderation.create_index('status')
-        db.moderation.create_index('contentModel')
-        db.moderation.create_index('createdAt')
-
-        # Templates collection indexes
-        db.templates.create_index('category')
-        db.templates.create_index('isPremium')
-        db.templates.create_index('isPublic')
-
-        # Plugins collection indexes
-        db.plugins.create_index('name', unique=True)
-        db.plugins.create_index('isActive')
-
-        logger.info("✅ MongoDB indexes created successfully.")
+        db.session.commit()
+        logger.info("✅ Default subscription plans seeded")
     except Exception as e:
-        logger.warning(f"⚠️  Index creation warning: {e}")
+        db.session.rollback()
+        logger.warning(f"⚠️  Subscription seeding warning: {e}")
+
+
+def _seed_templates():
+    """Insert default website templates if none exist yet."""
+    from app.models.template import Template
+
+    if Template.query.count() > 0:
+        return
+
+    defaults = [
+        dict(name='blank',      display_name='Blank Canvas',
+             description='Start from scratch with a completely blank template.',
+             category='basic',  is_premium=False, is_public=True,
+             tags='["minimal","blank","starter"]',
+             thumbnail_url='/templates/blank.png',
+             content='{"pages":[{"title":"Home","slug":"home","content":"<h1>Welcome</h1>"}]}'),
+        dict(name='business',   display_name='Business Pro',
+             description='Professional business website template.',
+             category='business', is_premium=False, is_public=True,
+             tags='["business","professional","corporate"]',
+             thumbnail_url='/templates/business.png',
+             content='{"pages":[{"title":"Home","slug":"home","content":"<h1>Business Pro</h1>"}]}'),
+        dict(name='portfolio',  display_name='Portfolio',
+             description='Showcase your work with this clean portfolio template.',
+             category='portfolio', is_premium=False, is_public=True,
+             tags='["portfolio","creative","showcase"]',
+             thumbnail_url='/templates/portfolio.png',
+             content='{"pages":[{"title":"Home","slug":"home","content":"<h1>My Portfolio</h1>"}]}'),
+        dict(name='blog',       display_name='Blog',
+             description='Clean blogging template with article layout.',
+             category='blog',  is_premium=False, is_public=True,
+             tags='["blog","articles","writing"]',
+             thumbnail_url='/templates/blog.png',
+             content='{"pages":[{"title":"Home","slug":"home","content":"<h1>My Blog</h1>"}]}'),
+        dict(name='ecommerce',  display_name='E-Commerce',
+             description='Ready-made shop template with product pages.',
+             category='ecommerce', is_premium=True, is_public=True,
+             tags='["shop","ecommerce","products"]',
+             thumbnail_url='/templates/ecommerce.png',
+             content='{"pages":[{"title":"Home","slug":"home","content":"<h1>My Shop</h1>"}]}'),
+    ]
+
+    for tpl in defaults:
+        db.session.add(Template(**tpl))
+
+    try:
+        db.session.commit()
+        logger.info("✅ Default templates seeded")
+    except Exception as e:
+        db.session.rollback()
+        logger.warning(f"⚠️  Template seeding warning: {e}")

@@ -1,98 +1,102 @@
 """
-Plugin Model
-Registry for installed plugins and their configuration
+Plugin model — SQLAlchemy/SQLite
 """
+import json
 from datetime import datetime, timezone
-from bson import ObjectId
-from app.database import get_db
+from app.database import db
 
 
-class PluginModel:
-    """Plugin registry model."""
+class Plugin(db.Model):
+    __tablename__ = 'plugins'
 
-    COLLECTION = 'plugins'
-
-    @classmethod
-    def get_collection(cls):
-        return get_db()[cls.COLLECTION]
-
-    @classmethod
-    def create(cls, name: str, display_name: str, description: str,
-               version: str, author: str, entry_point: str,
-               hooks: list = None, settings: dict = None) -> dict:
-        """Register a new plugin."""
-        collection = cls.get_collection()
-        if collection.find_one({'name': name}):
-            raise ValueError(f"Plugin '{name}' is already registered")
-
-        now = datetime.now(timezone.utc)
-        doc = {
-            'name': name,
-            'displayName': display_name,
-            'description': description,
-            'version': version,
-            'author': author,
-            'entryPoint': entry_point,
-            'hooks': hooks or [],
-            'settings': settings or {},
-            'isActive': False,
-            'installedAt': now,
-            'updatedAt': now
-        }
-        result = collection.insert_one(doc)
-        doc['_id'] = result.inserted_id
-        return cls.serialize(doc)
+    id           = db.Column(db.Integer, primary_key=True)
+    name         = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    display_name = db.Column(db.String(200), nullable=False)
+    description  = db.Column(db.Text,        nullable=True)
+    version      = db.Column(db.String(20),  nullable=False, default='1.0.0')
+    author       = db.Column(db.String(100), nullable=True)
+    is_active    = db.Column(db.Boolean,     nullable=False, default=False, index=True)
+    config       = db.Column(db.Text,        nullable=True, default='{}')  # JSON object
+    hooks        = db.Column(db.Text,        nullable=True, default='[]')  # JSON array
+    created_at   = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at   = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                             onupdate=lambda: datetime.now(timezone.utc))
 
     @classmethod
-    def find_all(cls, query: dict = None) -> list:
-        cursor = cls.get_collection().find(query or {}).sort('name', 1)
-        return [cls.serialize(doc) for doc in cursor]
-
-    @classmethod
-    def find_by_id(cls, plugin_id: str) -> dict | None:
-        try:
-            doc = cls.get_collection().find_one({'_id': ObjectId(plugin_id)})
-            return cls.serialize(doc) if doc else None
-        except Exception:
-            return None
-
-    @classmethod
-    def find_by_name(cls, name: str) -> dict | None:
-        doc = cls.get_collection().find_one({'name': name})
-        return cls.serialize(doc) if doc else None
-
-    @classmethod
-    def update_by_id(cls, plugin_id: str, updates: dict) -> dict | None:
-        updates['updatedAt'] = datetime.now(timezone.utc)
-        result = cls.get_collection().find_one_and_update(
-            {'_id': ObjectId(plugin_id)},
-            {'$set': updates},
-            return_document=True
+    def create(cls, name, display_name, description=None, version='1.0.0',
+               author=None, config=None, hooks=None):
+        plugin = cls(
+            name=name.lower().strip(),
+            display_name=display_name,
+            description=description,
+            version=version,
+            author=author,
+            config=json.dumps(config or {}),
+            hooks=json.dumps(hooks or []),
         )
-        return cls.serialize(result) if result else None
+        db.session.add(plugin)
+        db.session.commit()
+        return plugin
 
     @classmethod
-    def toggle_active(cls, plugin_id: str) -> dict | None:
-        """Toggle the isActive flag on a plugin."""
-        doc = cls.get_collection().find_one({'_id': ObjectId(plugin_id)})
-        if not doc:
-            return None
-        new_state = not doc.get('isActive', False)
-        return cls.update_by_id(plugin_id, {'isActive': new_state})
+    def find_all(cls, active_only=False):
+        q = cls.query
+        if active_only:
+            q = q.filter_by(is_active=True)
+        return q.order_by(cls.name.asc()).all()
 
     @classmethod
-    def delete_by_id(cls, plugin_id: str) -> bool:
-        result = cls.get_collection().delete_one({'_id': ObjectId(plugin_id)})
-        return result.deleted_count > 0
+    def find_by_id(cls, plugin_id):
+        return cls.query.get(int(plugin_id))
 
     @classmethod
-    def serialize(cls, doc: dict) -> dict:
-        if not doc:
-            return doc
-        d = dict(doc)
-        if '_id' in d and isinstance(d['_id'], ObjectId):
-            d['_id'] = str(d['_id'])
-        for key in ('installedAt', 'updatedAt'):
-            if key in d and isinstance(d[key], datetime):
-                d[key] = d[key].isoformat()
-        return d
+    def find_by_name(cls, name):
+        return cls.query.filter_by(name=name.lower()).first()
+
+    def toggle_active(self):
+        self.is_active  = not self.is_active
+        self.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return self.is_active
+
+    def update(self, **kwargs):
+        allowed = {'display_name', 'description', 'version', 'author', 'is_active', 'config', 'hooks'}
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(self, key, value)
+        self.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def get_config(self):
+        try:
+            return json.loads(self.config or '{}')
+        except Exception:
+            return {}
+
+    def get_hooks(self):
+        try:
+            return json.loads(self.hooks or '[]')
+        except Exception:
+            return []
+
+    def to_dict(self):
+        return {
+            'id':          self.id,
+            'name':        self.name,
+            'displayName': self.display_name,
+            'description': self.description,
+            'version':     self.version,
+            'author':      self.author,
+            'isActive':    self.is_active,
+            'config':      self.get_config(),
+            'hooks':       self.get_hooks(),
+            'createdAt':   self.created_at.isoformat() if self.created_at else None,
+            'updatedAt':   self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f'<Plugin {self.name}>'

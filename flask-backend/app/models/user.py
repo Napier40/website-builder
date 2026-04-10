@@ -1,195 +1,120 @@
 """
-User Model
-Handles all user-related database operations using PyMongo
+User model — SQLAlchemy/SQLite
 """
 import bcrypt
-import logging
 from datetime import datetime, timezone
-from bson import ObjectId
-from app.database import get_db
-
-logger = logging.getLogger(__name__)
-
-VALID_ROLES = ['user', 'admin']
-VALID_SUBSCRIPTION_STATUSES = ['none', 'basic', 'premium', 'enterprise']
+from app.database import db
 
 
-class UserModel:
-    """User model providing CRUD operations and business logic."""
+class User(db.Model):
+    __tablename__ = 'users'
 
-    COLLECTION = 'users'
+    id                 = db.Column(db.Integer, primary_key=True)
+    name               = db.Column(db.String(120), nullable=False)
+    email              = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    password           = db.Column(db.String(255), nullable=False)
+    role               = db.Column(db.String(20),  nullable=False, default='user')  # user | admin
+    subscription_type  = db.Column(db.String(50),  nullable=False, default='free')
+    subscription_status= db.Column(db.String(20),  nullable=False, default='active')
+    stripe_customer_id = db.Column(db.String(100), nullable=True)
+    created_at         = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at         = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                                   onupdate=lambda: datetime.now(timezone.utc))
 
-    @classmethod
-    def get_collection(cls):
-        """Get the users collection from the current database."""
-        return get_db()[cls.COLLECTION]
+    # Relationships
+    websites    = db.relationship('Website',    backref='owner',    lazy=True, cascade='all, delete-orphan',
+                                  foreign_keys='Website.user_id')
+    payments    = db.relationship('Payment',    backref='user',     lazy=True, cascade='all, delete-orphan')
+    audit_logs  = db.relationship('AuditLog',   backref='user',     lazy=True, cascade='all, delete-orphan')
+    moderations = db.relationship('Moderation', backref='reporter', lazy=True, cascade='all, delete-orphan',
+                                  foreign_keys='Moderation.reporter_id')
 
-    # ─── Create ────────────────────────────────────────────────────────────────
-
-    @classmethod
-    def create(cls, name: str, email: str, password: str, role: str = 'user') -> dict:
-        """
-        Create a new user with a hashed password.
-        Returns the created user document (without password).
-        """
-        collection = cls.get_collection()
-
-        # Check for duplicate email
-        if collection.find_one({'email': email.lower().strip()}):
-            raise ValueError('User with this email already exists')
-
-        # Validate role
-        if role not in VALID_ROLES:
-            role = 'user'
-
-        # Hash password
-        hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(10))
-
-        now = datetime.now(timezone.utc)
-        user_doc = {
-            'name': name.strip(),
-            'email': email.lower().strip(),
-            'password': hashed_pw.decode('utf-8'),
-            'role': role,
-            'subscriptionStatus': 'none',
-            'subscriptionId': None,
-            'stripeCustomerId': None,
-            'isActive': True,
-            'createdAt': now,
-            'updatedAt': now
-        }
-
-        result = collection.insert_one(user_doc)
-        user_doc['_id'] = result.inserted_id
-        return cls.sanitize(user_doc)
-
-    # ─── Read ──────────────────────────────────────────────────────────────────
+    # ── Class methods ─────────────────────────────────────────────────────────
 
     @classmethod
-    def find_by_id(cls, user_id: str, include_password: bool = False) -> dict | None:
-        """Find a user by their MongoDB ObjectId string."""
-        try:
-            doc = cls.get_collection().find_one({'_id': ObjectId(user_id)})
-            if doc:
-                return doc if include_password else cls.sanitize(doc)
-            return None
-        except Exception:
-            return None
+    def create(cls, name, email, password, role='user'):
+        """Hash password and persist a new user. Raises ValueError on duplicate email."""
+        if cls.query.filter_by(email=email.lower().strip()).first():
+            raise ValueError('Email already registered')
+
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        user = cls(
+            name=name.strip(),
+            email=email.lower().strip(),
+            password=hashed,
+            role=role,
+        )
+        db.session.add(user)
+        db.session.commit()
+        return user
 
     @classmethod
-    def find_by_email(cls, email: str, include_password: bool = True) -> dict | None:
-        """Find a user by email address."""
-        doc = cls.get_collection().find_one({'email': email.lower().strip()})
-        if doc:
-            return doc if include_password else cls.sanitize(doc)
-        return None
+    def find_by_id(cls, user_id):
+        return cls.query.get(int(user_id))
 
     @classmethod
-    def find_all(cls, query: dict = None, skip: int = 0, limit: int = 10,
-                 sort_field: str = 'createdAt', sort_dir: int = -1) -> tuple[list, int]:
-        """
-        Find all users matching query with pagination.
-        Returns (users_list, total_count).
-        """
-        collection = cls.get_collection()
-        query = query or {}
+    def find_by_email(cls, email):
+        return cls.query.filter_by(email=email.lower().strip()).first()
 
-        total = collection.count_documents(query)
-        cursor = collection.find(query, {'password': 0}) \
-            .sort(sort_field, sort_dir) \
-            .skip(skip) \
-            .limit(limit)
-
-        users = [cls.serialize(doc) for doc in cursor]
+    @classmethod
+    def find_all(cls, search=None, role=None, page=1, limit=10, sort_by='created_at', sort_dir='desc'):
+        q = cls.query
+        if search:
+            q = q.filter(
+                db.or_(cls.name.ilike(f'%{search}%'), cls.email.ilike(f'%{search}%'))
+            )
+        if role:
+            q = q.filter_by(role=role)
+        total = q.count()
+        col   = getattr(cls, sort_by, cls.created_at)
+        q     = q.order_by(col.desc() if sort_dir == 'desc' else col.asc())
+        users = q.offset((page - 1) * limit).limit(limit).all()
         return users, total
 
-    # ─── Update ────────────────────────────────────────────────────────────────
-
     @classmethod
-    def update_by_id(cls, user_id: str, updates: dict) -> dict | None:
-        """Update a user by ID. Returns the updated user document."""
-        collection = cls.get_collection()
-        updates['updatedAt'] = datetime.now(timezone.utc)
+    def count(cls, role=None):
+        q = cls.query
+        if role:
+            q = q.filter_by(role=role)
+        return q.count()
 
-        # Never allow direct password update through this method
-        updates.pop('password', None)
+    def update(self, **kwargs):
+        """Update allowed fields."""
+        allowed = {'name', 'role', 'subscription_type', 'subscription_status', 'stripe_customer_id'}
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(self, key, value)
+        self.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
 
-        result = collection.find_one_and_update(
-            {'_id': ObjectId(user_id)},
-            {'$set': updates},
-            return_document=True
-        )
-        return cls.sanitize(result) if result else None
+    def update_password(self, new_password):
+        hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        self.password = hashed
+        self.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
 
-    @classmethod
-    def update_password(cls, user_id: str, new_password: str) -> bool:
-        """Hash and update a user's password."""
-        hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt(10))
-        result = cls.get_collection().update_one(
-            {'_id': ObjectId(user_id)},
-            {'$set': {
-                'password': hashed.decode('utf-8'),
-                'updatedAt': datetime.now(timezone.utc)
-            }}
-        )
-        return result.modified_count > 0
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
 
-    # ─── Delete ────────────────────────────────────────────────────────────────
+    def verify_password(self, plain_password):
+        return bcrypt.checkpw(plain_password.encode('utf-8'), self.password.encode('utf-8'))
 
-    @classmethod
-    def delete_by_id(cls, user_id: str) -> bool:
-        """Delete a user by ID. Returns True if deleted."""
-        result = cls.get_collection().delete_one({'_id': ObjectId(user_id)})
-        return result.deleted_count > 0
-
-    # ─── Auth helpers ──────────────────────────────────────────────────────────
-
-    @classmethod
-    def verify_password(cls, plain_password: str, hashed_password: str) -> bool:
-        """Compare a plain text password against a bcrypt hash."""
-        try:
-            return bcrypt.checkpw(
-                plain_password.encode('utf-8'),
-                hashed_password.encode('utf-8')
-            )
-        except Exception:
-            return False
-
-    @classmethod
-    def count(cls, query: dict = None) -> int:
-        """Count documents matching query."""
-        return cls.get_collection().count_documents(query or {})
-
-    # ─── Aggregation ──────────────────────────────────────────────────────────
-
-    @classmethod
-    def aggregate_subscription_stats(cls) -> list:
-        """Group users by subscriptionStatus and return counts."""
-        pipeline = [
-            {'$group': {'_id': '$subscriptionStatus', 'count': {'$sum': 1}}}
-        ]
-        return list(cls.get_collection().aggregate(pipeline))
-
-    # ─── Serialization ────────────────────────────────────────────────────────
-
-    @classmethod
-    def sanitize(cls, doc: dict) -> dict:
-        """Remove sensitive fields (password) and serialize ObjectIds."""
-        if not doc:
-            return doc
-        d = dict(doc)
-        d.pop('password', None)
-        return cls.serialize(d)
-
-    @classmethod
-    def serialize(cls, doc: dict) -> dict:
-        """Convert ObjectId and datetime fields to JSON-serializable types."""
-        if not doc:
-            return doc
-        d = dict(doc)
-        if '_id' in d and isinstance(d['_id'], ObjectId):
-            d['_id'] = str(d['_id'])
-        for key in ('createdAt', 'updatedAt'):
-            if key in d and isinstance(d[key], datetime):
-                d[key] = d[key].isoformat()
+    def to_dict(self, include_password=False):
+        d = {
+            'id':                  self.id,
+            'name':                self.name,
+            'email':               self.email,
+            'role':                self.role,
+            'subscriptionType':    self.subscription_type,
+            'subscriptionStatus':  self.subscription_status,
+            'stripeCustomerId':    self.stripe_customer_id,
+            'createdAt':           self.created_at.isoformat() if self.created_at else None,
+            'updatedAt':           self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_password:
+            d['password'] = self.password
         return d
+
+    def __repr__(self):
+        return f'<User {self.email}>'

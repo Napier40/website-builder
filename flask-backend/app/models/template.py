@@ -1,159 +1,114 @@
 """
-Template Model
-Website templates that users can apply to their sites
+Template model — SQLAlchemy/SQLite
 """
+import json
 from datetime import datetime, timezone
-from bson import ObjectId
-from app.database import get_db
+from app.database import db
 
 
-class TemplateModel:
-    """Website template model."""
+class Template(db.Model):
+    __tablename__ = 'templates'
 
-    COLLECTION = 'templates'
-
-    VALID_CATEGORIES = [
-        'business', 'portfolio', 'blog', 'ecommerce',
-        'landing', 'personal', 'nonprofit', 'education', 'other'
-    ]
-
-    @classmethod
-    def get_collection(cls):
-        return get_db()[cls.COLLECTION]
-
-    @classmethod
-    def create(cls, name: str, display_name: str, description: str,
-               category: str, thumbnail: str = None, preview_url: str = None,
-               content: dict = None, settings: dict = None, tags: list = None,
-               is_premium: bool = False, is_public: bool = True,
-               created_by: str = None) -> dict:
-        """Create a new template."""
-        now = datetime.now(timezone.utc)
-        doc = {
-            'name': name,
-            'displayName': display_name,
-            'description': description,
-            'category': category if category in cls.VALID_CATEGORIES else 'other',
-            'thumbnail': thumbnail,
-            'previewUrl': preview_url,
-            'content': content or {},
-            'settings': settings or {},
-            'tags': tags or [],
-            'isPremium': is_premium,
-            'isPublic': is_public,
-            'usageCount': 0,
-            'rating': 0.0,
-            'createdBy': ObjectId(created_by) if created_by else None,
-            'createdAt': now,
-            'updatedAt': now
-        }
-        result = cls.get_collection().insert_one(doc)
-        doc['_id'] = result.inserted_id
-        return cls.serialize(doc)
+    id            = db.Column(db.Integer, primary_key=True)
+    name          = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    display_name  = db.Column(db.String(200), nullable=False)
+    description   = db.Column(db.Text,        nullable=True)
+    category      = db.Column(db.String(50),  nullable=False, default='general', index=True)
+    is_premium    = db.Column(db.Boolean,     nullable=False, default=False, index=True)
+    is_public     = db.Column(db.Boolean,     nullable=False, default=True)
+    tags          = db.Column(db.Text,        nullable=True, default='[]')    # JSON array
+    thumbnail_url = db.Column(db.String(255), nullable=True)
+    content       = db.Column(db.Text,        nullable=True, default='{}')   # JSON object
+    usage_count   = db.Column(db.Integer,     nullable=False, default=0)
+    created_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at    = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                              onupdate=lambda: datetime.now(timezone.utc))
 
     @classmethod
-    def find_all(cls, query: dict = None, skip: int = 0,
-                 limit: int = 10, sort_field: str = 'usageCount',
-                 sort_dir: int = -1) -> tuple[list, int]:
-        collection = cls.get_collection()
-        query = query or {}
-        total = collection.count_documents(query)
-        cursor = collection.find(query).sort(sort_field, sort_dir).skip(skip).limit(limit)
-        return [cls.serialize(doc) for doc in cursor], total
-
-    @classmethod
-    def find_by_id(cls, template_id: str) -> dict | None:
-        try:
-            doc = cls.get_collection().find_one({'_id': ObjectId(template_id)})
-            return cls.serialize(doc) if doc else None
-        except Exception:
-            return None
-
-    @classmethod
-    def find_public(cls, category: str = None, is_premium: bool = None,
-                    skip: int = 0, limit: int = 10) -> tuple[list, int]:
-        query = {'isPublic': True}
+    def find_all(cls, page=1, limit=20, category=None, is_premium=None, search=None):
+        q = cls.query.filter_by(is_public=True)
         if category:
-            query['category'] = category
+            q = q.filter_by(category=category)
         if is_premium is not None:
-            query['isPremium'] = is_premium
-        return cls.find_all(query, skip, limit)
+            q = q.filter_by(is_premium=is_premium)
+        if search:
+            q = q.filter(
+                db.or_(cls.display_name.ilike(f'%{search}%'),
+                       cls.description.ilike(f'%{search}%'))
+            )
+        total = q.count()
+        items = q.order_by(cls.usage_count.desc()).offset((page - 1) * limit).limit(limit).all()
+        return items, total
 
     @classmethod
-    def get_categories(cls) -> list:
-        """Return all distinct categories in use."""
-        return cls.get_collection().distinct('category', {'isPublic': True})
+    def find_by_id(cls, template_id):
+        return cls.query.get(int(template_id))
 
     @classmethod
-    def get_tags(cls) -> list:
-        """Return all distinct tags in use."""
-        return cls.get_collection().distinct('tags', {'isPublic': True})
+    def find_by_name(cls, name):
+        return cls.query.filter_by(name=name.lower()).first()
 
     @classmethod
-    def update_by_id(cls, template_id: str, updates: dict) -> dict | None:
-        updates['updatedAt'] = datetime.now(timezone.utc)
-        result = cls.get_collection().find_one_and_update(
-            {'_id': ObjectId(template_id)},
-            {'$set': updates},
-            return_document=True
-        )
-        return cls.serialize(result) if result else None
+    def get_categories(cls):
+        rows = db.session.query(cls.category).filter_by(is_public=True).distinct().all()
+        return [r[0] for r in rows]
 
     @classmethod
-    def increment_usage(cls, template_id: str):
-        cls.get_collection().update_one(
-            {'_id': ObjectId(template_id)},
-            {'$inc': {'usageCount': 1}}
-        )
+    def get_tags(cls):
+        all_tags = set()
+        for row in cls.query.filter_by(is_public=True).all():
+            try:
+                for tag in json.loads(row.tags or '[]'):
+                    all_tags.add(tag)
+            except Exception:
+                pass
+        return sorted(all_tags)
 
-    @classmethod
-    def delete_by_id(cls, template_id: str) -> bool:
-        result = cls.get_collection().delete_one({'_id': ObjectId(template_id)})
-        return result.deleted_count > 0
+    def increment_usage(self):
+        self.usage_count += 1
+        db.session.commit()
 
-    @classmethod
-    def seed_default_templates(cls):
-        """Seed default templates if none exist."""
-        if cls.get_collection().count_documents({}) > 0:
-            return
-        defaults = [
-            {
-                'name': 'default', 'displayName': 'Clean Business',
-                'description': 'A clean, professional business template',
-                'category': 'business', 'tags': ['clean', 'professional'],
-                'isPremium': False, 'isPublic': True
-            },
-            {
-                'name': 'portfolio', 'displayName': 'Creative Portfolio',
-                'description': 'Showcase your work with this modern portfolio',
-                'category': 'portfolio', 'tags': ['creative', 'modern'],
-                'isPremium': False, 'isPublic': True
-            },
-            {
-                'name': 'blog', 'displayName': 'Minimal Blog',
-                'description': 'Perfect for writers and content creators',
-                'category': 'blog', 'tags': ['minimal', 'clean'],
-                'isPremium': False, 'isPublic': True
-            },
-            {
-                'name': 'landing', 'displayName': 'Product Launch',
-                'description': 'High-converting landing page template',
-                'category': 'landing', 'tags': ['conversion', 'marketing'],
-                'isPremium': True, 'isPublic': True
-            }
-        ]
-        for t in defaults:
-            cls.create(**t)
+    def update(self, **kwargs):
+        allowed = {'display_name', 'description', 'category', 'is_premium',
+                   'is_public', 'tags', 'thumbnail_url', 'content'}
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(self, key, value)
+        self.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
 
-    @classmethod
-    def serialize(cls, doc: dict) -> dict:
-        if not doc:
-            return doc
-        d = dict(doc)
-        for field in ('_id', 'createdBy'):
-            if field in d and isinstance(d[field], ObjectId):
-                d[field] = str(d[field])
-        for key in ('createdAt', 'updatedAt'):
-            if key in d and isinstance(d[key], datetime):
-                d[key] = d[key].isoformat()
-        return d
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+    def get_tags_list(self):
+        try:
+            return json.loads(self.tags or '[]')
+        except Exception:
+            return []
+
+    def get_content(self):
+        try:
+            return json.loads(self.content or '{}')
+        except Exception:
+            return {}
+
+    def to_dict(self):
+        return {
+            'id':           self.id,
+            'name':         self.name,
+            'displayName':  self.display_name,
+            'description':  self.description,
+            'category':     self.category,
+            'isPremium':    self.is_premium,
+            'isPublic':     self.is_public,
+            'tags':         self.get_tags_list(),
+            'thumbnailUrl': self.thumbnail_url,
+            'content':      self.get_content(),
+            'usageCount':   self.usage_count,
+            'createdAt':    self.created_at.isoformat() if self.created_at else None,
+            'updatedAt':    self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f'<Template {self.name}>'

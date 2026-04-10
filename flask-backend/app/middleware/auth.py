@@ -1,154 +1,146 @@
 """
-Authentication & Authorization Middleware
-Flask decorators for JWT protection, role-based access, and subscription checks
+Authentication & Authorisation Middleware
+Decorators for JWT verification, role-based access control,
+subscription gating, and audit logging.
 """
 import logging
 from functools import wraps
-from flask import jsonify, request, g
+from flask import g, jsonify, request
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
-from app.models.user import UserModel
 
 logger = logging.getLogger(__name__)
 
 
-def jwt_required_custom(fn):
+# ── JWT verification ──────────────────────────────────────────────────────────
+
+def jwt_required_custom(f):
     """
-    Decorator: validates JWT token and loads the current user into flask.g.
-    Replaces the need to call verify_jwt_in_request() manually in every route.
+    Verify the JWT Bearer token and load the current user into flask.g.
+    Must be applied before @authorize or @check_subscription.
     """
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
+    @wraps(f)
+    def decorated(*args, **kwargs):
         try:
             verify_jwt_in_request()
             user_id = get_jwt_identity()
-            user = UserModel.find_by_id(user_id)
 
+            from app.models.user import User
+            user = User.find_by_id(user_id)
             if not user:
-                return jsonify({
-                    'success': False,
-                    'message': 'User not found - token may be stale'
-                }), 401
+                return jsonify({'success': False, 'message': 'User not found'}), 401
 
-            if not user.get('isActive', True):
-                return jsonify({
-                    'success': False,
-                    'message': 'Account is deactivated. Please contact support.'
-                }), 403
-
-            # Store user in flask.g for access in route handlers
             g.current_user = user
-            g.user_id = str(user['_id'])
+            return f(*args, **kwargs)
 
         except Exception as e:
-            logger.warning(f"JWT verification failed: {e}")
-            return jsonify({
-                'success': False,
-                'message': 'Not authorized to access this route'
-            }), 401
+            logger.debug(f"JWT verification failed: {e}")
+            return jsonify({'success': False, 'message': 'Invalid or expired token'}), 401
 
-        return fn(*args, **kwargs)
-    return wrapper
+    return decorated
 
+
+# ── Role-based access control ─────────────────────────────────────────────────
 
 def authorize(*roles):
     """
-    Decorator factory: restricts a route to users with specific roles.
-    Must be used AFTER @jwt_required_custom.
+    Restrict access to users with one of the given roles.
+    Must be used after @jwt_required_custom.
 
     Usage:
         @jwt_required_custom
         @authorize('admin')
-        def admin_only_route():
-            ...
+        def admin_only_route(): ...
     """
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
             user = getattr(g, 'current_user', None)
-            if not user or user.get('role') not in roles:
+            if not user:
+                return jsonify({'success': False, 'message': 'Authentication required'}), 401
+            if roles and user.role not in roles:
                 return jsonify({
                     'success': False,
-                    'message': f"Access denied. Required role(s): {', '.join(roles)}"
+                    'message': f"Access denied — required role: {' or '.join(roles)}"
                 }), 403
-            return fn(*args, **kwargs)
-        return wrapper
+            return f(*args, **kwargs)
+        return decorated
     return decorator
 
 
+# ── Subscription gating ───────────────────────────────────────────────────────
+
 def check_subscription(*subscription_types):
     """
-    Decorator factory: restricts a route to users with specific subscription levels.
-    Must be used AFTER @jwt_required_custom.
+    Restrict access to users on specific subscription plans.
+    Must be used after @jwt_required_custom.
 
     Usage:
         @jwt_required_custom
         @check_subscription('premium', 'enterprise')
-        def premium_feature():
-            ...
+        def premium_route(): ...
     """
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
             user = getattr(g, 'current_user', None)
             if not user:
-                return jsonify({
-                    'success': False,
-                    'message': 'Authentication required'
-                }), 401
+                return jsonify({'success': False, 'message': 'Authentication required'}), 401
 
             # Admins bypass subscription checks
-            if user.get('role') == 'admin':
-                return fn(*args, **kwargs)
+            if user.role == 'admin':
+                return f(*args, **kwargs)
 
-            if user.get('subscriptionStatus') not in subscription_types:
+            if subscription_types and user.subscription_type not in subscription_types:
                 return jsonify({
                     'success': False,
-                    'message': (
-                        f"This feature requires one of the following subscription plans: "
-                        f"{', '.join(subscription_types)}. "
-                        f"Please upgrade your subscription."
-                    )
+                    'message': f"This feature requires a {' or '.join(subscription_types)} subscription",
+                    'upgradeRequired': True,
                 }), 403
-            return fn(*args, **kwargs)
-        return wrapper
+            return f(*args, **kwargs)
+        return decorated
     return decorator
 
 
-def audit_log_request(action: str, resource_model: str = None):
+# ── Audit logging decorator ───────────────────────────────────────────────────
+
+def audit_log_request(action, resource_model=None):
     """
-    Decorator factory: automatically creates an audit log entry after a request.
-    Non-blocking - failures are silently swallowed.
+    Automatically create an audit log entry after a successful request.
+    Must be used after @jwt_required_custom.
 
     Usage:
         @jwt_required_custom
         @audit_log_request('CREATE', 'Website')
-        def create_website():
-            ...
+        def create_website(): ...
     """
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            response = fn(*args, **kwargs)
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            response = f(*args, **kwargs)
 
+            # Only log on success (2xx responses)
             try:
-                from app.models.audit_log import AuditLogModel
-                user = getattr(g, 'current_user', None)
-                if user:
-                    AuditLogModel.create_log(
-                        user_id=str(user['_id']),
+                status_code = response[1] if isinstance(response, tuple) else 200
+                if 200 <= status_code < 300:
+                    user = getattr(g, 'current_user', None)
+                    from app.models.audit_log import AuditLog
+                    AuditLog.create_log(
+                        user_id=user.id if user else None,
                         action=action,
-                        resource=request.path,
                         resource_model=resource_model,
-                        details={
-                            'method': request.method,
-                            'endpoint': request.endpoint
-                        },
-                        ip_address=request.remote_addr,
-                        user_agent=request.headers.get('User-Agent', '')
+                        ip_address=_get_client_ip(),
+                        user_agent=request.headers.get('User-Agent', '')[:255],
                     )
             except Exception as e:
-                logger.warning(f"Audit log decorator failed (non-critical): {e}")
+                logger.warning(f"Audit log decorator failed (non-fatal): {e}")
 
             return response
-        return wrapper
+        return decorated
     return decorator
+
+
+def _get_client_ip():
+    forwarded = request.environ.get('HTTP_X_FORWARDED_FOR')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote_addr or 'unknown'

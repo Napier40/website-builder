@@ -1,23 +1,24 @@
 """
-Models package - PyMongo-based data models
+Models package - SQLAlchemy ORM models
 Each model provides helper methods for database operations
 """
-from app.models.user import UserModel
-from app.models.website import WebsiteModel
-from app.models.subscription import SubscriptionModel
-from app.models.payment import PaymentModel
-from app.models.audit_log import AuditLogModel
-from app.models.moderation import ModerationModel
-from app.models.plugin import PluginModel
-from app.models.template import TemplateModel
+from app.models.user import User
+from app.models.website import Website, Page
+from app.models.subscription import Subscription
+from app.models.payment import Payment
+from app.models.audit_log import AuditLog
+from app.models.moderation import Moderation
+from app.models.plugin import Plugin
+from app.models.template import Template
 
 __all__ = [
-    'UserModel',
-    'WebsiteModel',
-    'SubscriptionModel',
-    'PaymentModel',
-    'AuditLogModel',
-    'ModerationModel',
-    'PluginModel',
-    'TemplateModel',
+    'User',
+    'Website',
+    'Page',
+    'Subscription',
+    'Payment',
+    'AuditLog',
+    'Moderation',
+    'Plugin',
+    'Template',
 ]

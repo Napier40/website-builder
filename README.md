@@ -1,6 +1,6 @@
 # Website Builder - Full Stack Application
 
-A **subscription-based website builder** platform built with **Python Flask** (backend) and **React** (frontend), backed by **MongoDB** and integrated with **Stripe** payments.
+A **subscription-based website builder** platform built with **Python Flask** (backend) and **React** (frontend), backed by **SQLite** (zero-config, built into Python) and integrated with **Stripe** payments.
 
 ---
 
@@ -11,7 +11,7 @@ website-builder/
 ├── flask-backend/          # Python Flask REST API
 │   ├── app/
 │   │   ├── __init__.py        # App factory
-│   │   ├── database.py        # MongoDB connection (PyMongo)
+│   │   ├── database.py        # SQLAlchemy db instance + init_db()
 │   │   ├── blueprints/        # Route handlers (Flask Blueprints)
 │   │   │   ├── auth.py        # /api/auth/*
 │   │   │   ├── websites.py    # /api/websites/*
@@ -21,19 +21,19 @@ website-builder/
 │   │   │   ├── plugins.py     # /api/plugins/*
 │   │   │   ├── templates.py   # /api/templates/*
 │   │   │   └── users.py       # /api/users/*
-│   │   ├── models/            # PyMongo data models
+│   │   ├── models/            # SQLAlchemy ORM models
 │   │   ├── middleware/        # JWT auth, authorization decorators
 │   │   ├── services/          # Plugin manager
 │   │   └── utils/             # Helper functions
 │   ├── config/                # Flask configuration (dev/test/prod)
 │   ├── plugins/               # Installable plugins
 │   ├── tests/                 # pytest test suite
-│   │   ├── conftest.py        # Shared fixtures
+│   │   ├── conftest.py        # Shared fixtures (in-memory SQLite)
 │   │   ├── unit/              # Model unit tests
 │   │   └── integration/       # API integration tests
 │   ├── run.py                 # Entry point
 │   ├── requirements.txt       # Python dependencies
-│   └── .env                   # Environment variables
+│   └── .env.example           # Environment variable template
 │
 ├── frontend/               # React Application
 │   ├── src/
@@ -59,7 +59,7 @@ website-builder/
 ### Prerequisites
 - Python 3.9+
 - Node.js 16+
-- MongoDB 5.0+
+- **No database installation needed** — SQLite is built into Python
 
 ### 1. Clone the repository
 ```bash
@@ -80,12 +80,14 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your MongoDB URI and Stripe keys
+# Edit .env — only STRIPE keys are required; SQLite needs no config
 
 # Start the server
 python run.py
 ```
 API runs at: **http://localhost:5000**
+
+The SQLite database file (`website_builder.db`) is created automatically in `flask-backend/` on first run. Subscription plans and default templates are seeded automatically.
 
 ### 3. Start the React Frontend
 ```bash
@@ -99,21 +101,17 @@ App runs at: **http://localhost:3000**
 
 ## 🔧 Configuration
 
-Edit `flask-backend/.env`:
+Copy `.env.example` to `.env` in `flask-backend/`:
 
 ```env
-FLASK_APP=run.py
 FLASK_ENV=development
-FLASK_DEBUG=1
-PORT=5000
+SECRET_KEY=change-me-in-production
+JWT_SECRET_KEY=change-me-in-production
 
-# MongoDB
-MONGO_URI=mongodb://localhost:27017/website-builder
+# SQLite database path (optional — defaults to flask-backend/website_builder.db)
+# DATABASE_URL=sqlite:///website_builder.db
 
-# JWT (change this in production!)
-JWT_SECRET_KEY=your-very-secure-secret-key
-
-# Stripe
+# Stripe (required for payment features)
 STRIPE_SECRET_KEY=sk_test_your_stripe_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
 
@@ -121,9 +119,13 @@ STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
 FRONTEND_URL=http://localhost:3000
 ```
 
+> **No `MONGO_URI` needed.** SQLite requires zero installation — the database file is created automatically.
+
 ---
 
 ## 🧪 Testing
+
+Tests use an **in-memory SQLite database** — no external services required.
 
 ### Run all tests
 ```bash
@@ -143,9 +145,6 @@ pytest -v --tb=short         # Verbose with short tracebacks
 pip install pytest-cov
 pytest --cov=app --cov-report=html
 ```
-
-### VS Code REST Client
-Open `flask-backend/tests/api-tests.http` with the REST Client extension to run manual API tests.
 
 ---
 
@@ -177,9 +176,9 @@ See [docs/FLASK_API.md](docs/FLASK_API.md) for full documentation.
 ## 🔐 Security Features
 
 - **JWT Authentication** (Flask-JWT-Extended, 30-day expiry)
-- **bcrypt Password Hashing** (10 rounds)
+- **bcrypt Password Hashing** (12 rounds)
 - **Role-Based Access Control** (user / admin)
-- **Subscription-Gated Features** (basic / premium / enterprise)
+- **Subscription-Gated Features** (free / basic / premium / enterprise)
 - **CORS Protection** (configurable origin whitelist)
 - **Audit Logging** (every significant action is logged)
 - **Content Moderation** (admin moderation queue)
@@ -192,12 +191,12 @@ See [docs/FLASK_API.md](docs/FLASK_API.md) for full documentation.
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Python 3.11, Flask 3.1 |
-| **Database** | MongoDB, PyMongo 4.x |
+| **Database** | SQLite (built-in), SQLAlchemy 2.0, Flask-SQLAlchemy 3.1 |
 | **Auth** | Flask-JWT-Extended, bcrypt |
 | **Payments** | Stripe Python SDK |
 | **Frontend** | React 18, React Router, Axios |
 | **Payments UI** | Stripe Elements |
-| **Testing** | pytest, mongomock, pytest-flask |
+| **Testing** | pytest, pytest-flask (in-memory SQLite) |
 | **Production** | Gunicorn WSGI server |
 
 ---
@@ -228,10 +227,10 @@ See [docs/FLASK_API.md](docs/FLASK_API.md) for full documentation.
 1. Open `flask-backend/` as the workspace root in VS Code
 2. Install recommended extensions:
    - **Python** (ms-python.python)
-   - **REST Client** (humao.rest-client)
    - **Pylance** (ms-python.vscode-pylance)
 3. Select the virtual environment interpreter: `./venv/bin/python`
-4. Use **F5** to launch with the debug configuration
+4. Create `.env` from `.env.example`
+5. Run `python run.py` — the SQLite database is created automatically
 
 ---
 

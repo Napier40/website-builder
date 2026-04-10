@@ -1,342 +1,210 @@
 """
-Website Model
-Handles all website and page-related database operations using PyMongo
+Website and Page models — SQLAlchemy/SQLite
 """
-import logging
+import json
 from datetime import datetime, timezone
-from bson import ObjectId
-from app.database import get_db
-
-logger = logging.getLogger(__name__)
-
-VALID_MODERATION_STATUSES = ['pending', 'approved', 'rejected', 'flagged']
+from app.database import db
 
 
-class WebsiteModel:
-    """Website model providing CRUD operations and page management."""
+class Page(db.Model):
+    __tablename__ = 'pages'
 
-    COLLECTION = 'websites'
+    id         = db.Column(db.Integer, primary_key=True)
+    website_id = db.Column(db.Integer, db.ForeignKey('websites.id', ondelete='CASCADE'), nullable=False)
+    title      = db.Column(db.String(200), nullable=False, default='New Page')
+    slug       = db.Column(db.String(200), nullable=False, default='new-page')
+    content    = db.Column(db.Text, nullable=False, default='')
+    order      = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
 
-    @classmethod
-    def get_collection(cls):
-        return get_db()[cls.COLLECTION]
-
-    # ─── Default content ───────────────────────────────────────────────────────
-
-    @classmethod
-    def default_home_page(cls) -> dict:
-        """Return a default homepage structure for new websites."""
-        now = datetime.now(timezone.utc)
+    def to_dict(self):
         return {
-            '_id': ObjectId(),
-            'title': 'Home',
-            'slug': 'home',
-            'content': {
-                'sections': [
-                    {
-                        'type': 'hero',
-                        'heading': 'Welcome to my website',
-                        'subheading': 'This is a new website created with Website Builder',
-                        'buttonText': 'Learn More',
-                        'buttonLink': '#about'
-                    },
-                    {
-                        'type': 'text',
-                        'heading': 'About Us',
-                        'content': 'This is the about section. You can edit this in the website builder.'
-                    }
-                ]
-            },
-            'isPublished': True,
-            'meta': {
-                'description': 'Welcome to my website',
-                'keywords': 'website, builder'
-            },
-            'createdAt': now,
-            'updatedAt': now
+            'id':        self.id,
+            'title':     self.title,
+            'slug':      self.slug,
+            'content':   self.content,
+            'order':     self.order,
+            'createdAt': self.created_at.isoformat() if self.created_at else None,
+            'updatedAt': self.updated_at.isoformat() if self.updated_at else None,
         }
 
-    @classmethod
-    def default_settings(cls) -> dict:
-        """Return default theme/SEO settings for a new website."""
-        return {
-            'theme': {
-                'primaryColor': '#3498db',
-                'secondaryColor': '#2ecc71',
-                'fontFamily': 'Arial, sans-serif',
-                'fontSize': '16px'
-            },
-            'seo': {
-                'title': '',
-                'description': '',
-                'keywords': ''
-            },
-            'analytics': {
-                'googleAnalyticsId': ''
-            }
-        }
 
-    # ─── Create ────────────────────────────────────────────────────────────────
+class Website(db.Model):
+    __tablename__ = 'websites'
 
-    @classmethod
-    def create(cls, name: str, subdomain: str, user_id: str,
-               template: str = 'default') -> dict:
-        """Create a new website with a default home page."""
-        collection = cls.get_collection()
+    id                = db.Column(db.Integer, primary_key=True)
+    name              = db.Column(db.String(200),  nullable=False)
+    subdomain         = db.Column(db.String(100),  nullable=False, unique=True, index=True)
+    custom_domain     = db.Column(db.String(255),  nullable=True,  unique=True)
+    user_id           = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    template          = db.Column(db.String(100),  nullable=False, default='blank')
+    is_published      = db.Column(db.Boolean,      nullable=False, default=False)
+    moderation_status = db.Column(db.String(20),   nullable=False, default='pending')  # pending|approved|rejected
+    description       = db.Column(db.Text,         nullable=True)
 
-        if collection.find_one({'subdomain': subdomain.lower().strip()}):
-            raise ValueError('Subdomain is already taken')
+    # Admin override tracking
+    admin_override_by     = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    admin_override_at     = db.Column(db.DateTime, nullable=True)
+    admin_override_reason = db.Column(db.Text,     nullable=True)
 
-        now = datetime.now(timezone.utc)
-        doc = {
-            'name': name.strip(),
-            'subdomain': subdomain.lower().strip(),
-            'customDomain': None,
-            'user': ObjectId(user_id),
-            'template': template,
-            'pages': [cls.default_home_page()],
-            'settings': cls.default_settings(),
-            'isPublished': False,
-            'moderationStatus': 'approved',
-            'moderationReason': None,
-            'adminOverride': {
-                'admin': None,
-                'date': None,
-                'reason': None
-            },
-            'lastModifiedBy': None,
-            'lastModifiedAt': None,
-            'createdAt': now,
-            'updatedAt': now
-        }
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
 
-        result = collection.insert_one(doc)
-        doc['_id'] = result.inserted_id
-        return cls.serialize(doc)
+    # Relationships
+    pages = db.relationship('Page', backref='website', lazy=True,
+                            cascade='all, delete-orphan',
+                            order_by='Page.order')
 
-    # ─── Read ──────────────────────────────────────────────────────────────────
+    # ── Class methods ─────────────────────────────────────────────────────────
 
     @classmethod
-    def find_by_id(cls, website_id: str) -> dict | None:
-        """Find a website by its MongoDB ObjectId string."""
-        try:
-            doc = cls.get_collection().find_one({'_id': ObjectId(website_id)})
-            return cls.serialize(doc) if doc else None
-        except Exception:
+    def create(cls, name, subdomain, user_id, template='blank'):
+        """Create website with a default Home page."""
+        if cls.query.filter_by(subdomain=subdomain.lower()).first():
+            raise ValueError('Subdomain already taken')
+
+        website = cls(
+            name=name.strip(),
+            subdomain=subdomain.lower().strip(),
+            user_id=user_id,
+            template=template,
+        )
+        db.session.add(website)
+        db.session.flush()   # get website.id before adding pages
+
+        # Add default home page
+        home = Page(
+            website_id=website.id,
+            title='Home',
+            slug='home',
+            content='<h1>Welcome to my website</h1>',
+            order=0,
+        )
+        db.session.add(home)
+        db.session.commit()
+        return website
+
+    @classmethod
+    def find_by_id(cls, website_id):
+        return cls.query.get(int(website_id))
+
+    @classmethod
+    def find_by_user(cls, user_id, page=1, limit=10):
+        q     = cls.query.filter_by(user_id=user_id).order_by(cls.created_at.desc())
+        total = q.count()
+        items = q.offset((page - 1) * limit).limit(limit).all()
+        return items, total
+
+    @classmethod
+    def find_all(cls, page=1, limit=10, search=None, moderation_status=None):
+        q = cls.query
+        if search:
+            q = q.filter(
+                db.or_(cls.name.ilike(f'%{search}%'), cls.subdomain.ilike(f'%{search}%'))
+            )
+        if moderation_status:
+            q = q.filter_by(moderation_status=moderation_status)
+        total = q.count()
+        items = q.order_by(cls.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
+        return items, total
+
+    @classmethod
+    def count_by_user(cls, user_id):
+        return cls.query.filter_by(user_id=user_id).count()
+
+    @classmethod
+    def subdomain_exists(cls, subdomain, exclude_id=None):
+        q = cls.query.filter_by(subdomain=subdomain.lower())
+        if exclude_id:
+            q = q.filter(cls.id != exclude_id)
+        return q.first() is not None
+
+    def publish(self):
+        self.is_published      = True
+        self.moderation_status = 'approved'
+        self.updated_at        = datetime.now(timezone.utc)
+        db.session.commit()
+
+    def unpublish(self):
+        self.is_published = False
+        self.updated_at   = datetime.now(timezone.utc)
+        db.session.commit()
+
+    def update(self, **kwargs):
+        allowed = {'name', 'description', 'custom_domain', 'moderation_status', 'template'}
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(self, key, value)
+        self.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+    def add_page(self, title, slug, content=''):
+        page = Page(
+            website_id=self.id,
+            title=title,
+            slug=slug,
+            content=content,
+            order=len(self.pages),
+        )
+        db.session.add(page)
+        db.session.commit()
+        return page
+
+    def update_page(self, page_id, **kwargs):
+        page = Page.query.filter_by(id=page_id, website_id=self.id).first()
+        if not page:
             return None
+        allowed = {'title', 'slug', 'content', 'order'}
+        for key, value in kwargs.items():
+            if key in allowed:
+                setattr(page, key, value)
+        page.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return page
 
-    @classmethod
-    def find_by_user(cls, user_id: str) -> list:
-        """Find all websites belonging to a specific user."""
-        cursor = cls.get_collection().find({'user': ObjectId(user_id)})
-        return [cls.serialize(doc) for doc in cursor]
+    def delete_page(self, page_id):
+        page = Page.query.filter_by(id=page_id, website_id=self.id).first()
+        if not page:
+            return False
+        db.session.delete(page)
+        db.session.commit()
+        return True
 
-    @classmethod
-    def find_all(cls, query: dict = None, skip: int = 0, limit: int = 10,
-                 sort_field: str = 'createdAt', sort_dir: int = -1) -> tuple[list, int]:
-        """Find all websites with pagination. Returns (websites, total)."""
-        collection = cls.get_collection()
-        query = query or {}
-        total = collection.count_documents(query)
-        cursor = collection.find(query).sort(sort_field, sort_dir).skip(skip).limit(limit)
-        return [cls.serialize(doc) for doc in cursor], total
+    def admin_override(self, admin_id, reason=''):
+        self.admin_override_by     = admin_id
+        self.admin_override_at     = datetime.now(timezone.utc)
+        self.admin_override_reason = reason
+        self.moderation_status     = 'approved'
+        self.updated_at            = datetime.now(timezone.utc)
+        db.session.commit()
 
-    @classmethod
-    def count_by_user(cls, user_id: str) -> int:
-        """Count websites belonging to a user."""
-        return cls.get_collection().count_documents({'user': ObjectId(user_id)})
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
 
-    @classmethod
-    def subdomain_exists(cls, subdomain: str, exclude_id: str = None) -> bool:
-        """Check whether a subdomain is already in use."""
-        query = {'subdomain': subdomain.lower().strip()}
-        if exclude_id:
-            query['_id'] = {'$ne': ObjectId(exclude_id)}
-        return cls.get_collection().find_one(query) is not None
-
-    @classmethod
-    def domain_exists(cls, domain: str, exclude_id: str = None) -> bool:
-        """Check whether a custom domain is already in use."""
-        query = {'customDomain': domain}
-        if exclude_id:
-            query['_id'] = {'$ne': ObjectId(exclude_id)}
-        return cls.get_collection().find_one(query) is not None
-
-    # ─── Update ────────────────────────────────────────────────────────────────
-
-    @classmethod
-    def update_by_id(cls, website_id: str, updates: dict) -> dict | None:
-        """Update a website by ID."""
-        updates['updatedAt'] = datetime.now(timezone.utc)
-        result = cls.get_collection().find_one_and_update(
-            {'_id': ObjectId(website_id)},
-            {'$set': updates},
-            return_document=True
-        )
-        return cls.serialize(result) if result else None
-
-    @classmethod
-    def publish(cls, website_id: str) -> dict | None:
-        """Mark a website as published."""
-        return cls.update_by_id(website_id, {'isPublished': True})
-
-    @classmethod
-    def unpublish(cls, website_id: str) -> dict | None:
-        """Mark a website as unpublished."""
-        return cls.update_by_id(website_id, {'isPublished': False})
-
-    # ─── Page management ──────────────────────────────────────────────────────
-
-    @classmethod
-    def add_page(cls, website_id: str, page_data: dict) -> dict | None:
-        """Add a new page to a website's pages array."""
-        now = datetime.now(timezone.utc)
-        new_page = {
-            '_id': ObjectId(),
-            'title': page_data.get('title', 'New Page'),
-            'slug': page_data.get('slug', ''),
-            'content': page_data.get('content', {}),
-            'isPublished': page_data.get('isPublished', False),
-            'meta': page_data.get('meta', {}),
-            'createdAt': now,
-            'updatedAt': now
+    def to_dict(self):
+        return {
+            'id':               self.id,
+            'name':             self.name,
+            'subdomain':        self.subdomain,
+            'customDomain':     self.custom_domain,
+            'userId':           self.user_id,
+            'template':         self.template,
+            'isPublished':      self.is_published,
+            'moderationStatus': self.moderation_status,
+            'description':      self.description,
+            'pages':            [p.to_dict() for p in self.pages],
+            'adminOverride':    {
+                'by':     self.admin_override_by,
+                'at':     self.admin_override_at.isoformat() if self.admin_override_at else None,
+                'reason': self.admin_override_reason,
+            } if self.admin_override_by else None,
+            'createdAt':        self.created_at.isoformat() if self.created_at else None,
+            'updatedAt':        self.updated_at.isoformat() if self.updated_at else None,
         }
 
-        result = cls.get_collection().find_one_and_update(
-            {'_id': ObjectId(website_id)},
-            {
-                '$push': {'pages': new_page},
-                '$set': {'updatedAt': now}
-            },
-            return_document=True
-        )
-        if result:
-            # Return the newly added page serialized
-            for page in result.get('pages', []):
-                if str(page.get('_id')) == str(new_page['_id']):
-                    return cls._serialize_page(page)
-        return None
-
-    @classmethod
-    def update_page(cls, website_id: str, page_id: str, updates: dict) -> dict | None:
-        """Update a specific page within a website."""
-        now = datetime.now(timezone.utc)
-
-        set_fields = {}
-        for field in ('title', 'content', 'isPublished', 'meta'):
-            if field in updates:
-                set_fields[f'pages.$.{field}'] = updates[field]
-        set_fields['pages.$.updatedAt'] = now
-        set_fields['updatedAt'] = now
-
-        result = cls.get_collection().find_one_and_update(
-            {
-                '_id': ObjectId(website_id),
-                'pages._id': ObjectId(page_id)
-            },
-            {'$set': set_fields},
-            return_document=True
-        )
-
-        if result:
-            for page in result.get('pages', []):
-                if str(page.get('_id')) == page_id:
-                    return cls._serialize_page(page)
-        return None
-
-    @classmethod
-    def delete_page(cls, website_id: str, page_id: str) -> bool:
-        """Remove a page from a website. Returns True if successful."""
-        now = datetime.now(timezone.utc)
-        result = cls.get_collection().update_one(
-            {'_id': ObjectId(website_id)},
-            {
-                '$pull': {'pages': {'_id': ObjectId(page_id)}},
-                '$set': {'updatedAt': now}
-            }
-        )
-        return result.modified_count > 0
-
-    # ─── Admin ────────────────────────────────────────────────────────────────
-
-    @classmethod
-    def admin_override(cls, website_id: str, admin_id: str,
-                       new_pages: list, reason: str) -> dict | None:
-        """
-        Admin override: replace website pages and record the override.
-        """
-        now = datetime.now(timezone.utc)
-        result = cls.get_collection().find_one_and_update(
-            {'_id': ObjectId(website_id)},
-            {'$set': {
-                'pages': new_pages,
-                'lastModifiedBy': ObjectId(admin_id),
-                'lastModifiedAt': now,
-                'adminOverride': {
-                    'admin': ObjectId(admin_id),
-                    'date': now,
-                    'reason': reason
-                },
-                'updatedAt': now
-            }},
-            return_document=True
-        )
-        return cls.serialize(result) if result else None
-
-    # ─── Delete ────────────────────────────────────────────────────────────────
-
-    @classmethod
-    def delete_by_id(cls, website_id: str) -> bool:
-        """Delete a website by ID."""
-        result = cls.get_collection().delete_one({'_id': ObjectId(website_id)})
-        return result.deleted_count > 0
-
-    @classmethod
-    def count(cls, query: dict = None) -> int:
-        """Count websites matching a query."""
-        return cls.get_collection().count_documents(query or {})
-
-    # ─── Serialization ────────────────────────────────────────────────────────
-
-    @classmethod
-    def _serialize_page(cls, page: dict) -> dict:
-        """Serialize a single page document."""
-        p = dict(page)
-        if '_id' in p and isinstance(p['_id'], ObjectId):
-            p['_id'] = str(p['_id'])
-        for key in ('createdAt', 'updatedAt'):
-            if key in p and isinstance(p[key], datetime):
-                p[key] = p[key].isoformat()
-        return p
-
-    @classmethod
-    def serialize(cls, doc: dict) -> dict:
-        """Recursively serialize a website document for JSON output."""
-        if not doc:
-            return doc
-        d = dict(doc)
-
-        # Top-level ObjectId fields
-        for field in ('_id', 'user', 'lastModifiedBy'):
-            if field in d and isinstance(d[field], ObjectId):
-                d[field] = str(d[field])
-
-        # adminOverride nested ObjectIds
-        if 'adminOverride' in d and d['adminOverride']:
-            ao = dict(d['adminOverride'])
-            if isinstance(ao.get('admin'), ObjectId):
-                ao['admin'] = str(ao['admin'])
-            if isinstance(ao.get('date'), datetime):
-                ao['date'] = ao['date'].isoformat()
-            d['adminOverride'] = ao
-
-        # Datetime fields
-        for key in ('createdAt', 'updatedAt', 'lastModifiedAt'):
-            if key in d and isinstance(d[key], datetime):
-                d[key] = d[key].isoformat()
-
-        # Serialize pages array
-        if 'pages' in d and d['pages']:
-            d['pages'] = [cls._serialize_page(p) for p in d['pages']]
-
-        return d
+    def __repr__(self):
+        return f'<Website {self.subdomain}>'

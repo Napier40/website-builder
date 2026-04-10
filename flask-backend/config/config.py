@@ -1,6 +1,7 @@
 """
 Flask Application Configuration
 Supports Development, Testing, and Production environments
+Uses SQLite — no separate database installation required.
 """
 import os
 from datetime import timedelta
@@ -8,70 +9,77 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Base directory of the flask-backend folder
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 
 class Config:
     """Base configuration shared across all environments."""
-    SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'fallback-secret-key-change-in-production')
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'fallback-secret-key-change-in-production')
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(seconds=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', 2592000)))
+
+    # ── Security ──────────────────────────────────────────────────────────────
+    SECRET_KEY         = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+    JWT_SECRET_KEY     = os.environ.get('JWT_SECRET_KEY', 'dev-jwt-secret-change-in-production')
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(
+        seconds=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', 2592000))  # 30 days
+    )
     JWT_TOKEN_LOCATION = ['headers']
-    JWT_HEADER_NAME = 'Authorization'
-    JWT_HEADER_TYPE = 'Bearer'
+    JWT_HEADER_NAME    = 'Authorization'
+    JWT_HEADER_TYPE    = 'Bearer'
 
-    MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/website-builder')
-    MONGO_DBNAME = os.environ.get('MONGO_DBNAME', 'website-builder')
+    # ── Database (SQLite) ──────────────────────────────────────────────────────
+    # Default: website_builder.db in the flask-backend directory
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        'DATABASE_URL',
+        f'sqlite:///{os.path.join(BASE_DIR, "website_builder.db")}'
+    )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ECHO = False   # Set True to log all SQL queries
 
-    STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
-    STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+    # ── Payments ──────────────────────────────────────────────────────────────
+    STRIPE_SECRET_KEY      = os.environ.get('STRIPE_SECRET_KEY', '')
+    STRIPE_WEBHOOK_SECRET  = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
-    FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    # ── CORS ──────────────────────────────────────────────────────────────────
+    FRONTEND_URL  = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    CORS_ORIGINS  = [os.environ.get('FRONTEND_URL', 'http://localhost:3000')]
 
-    CORS_ORIGINS = [os.environ.get('FRONTEND_URL', 'http://localhost:3000')]
-
-    DEBUG = False
-    TESTING = False
-
-    # File upload settings
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'uploads')
-
-    # Pagination defaults
-    DEFAULT_PAGE_SIZE = 10
-    MAX_PAGE_SIZE = 100
+    # ── Misc ──────────────────────────────────────────────────────────────────
+    DEBUG               = False
+    TESTING             = False
+    MAX_CONTENT_LENGTH  = 16 * 1024 * 1024   # 16 MB max upload
+    DEFAULT_PAGE_SIZE   = 10
+    MAX_PAGE_SIZE       = 100
 
 
 class DevelopmentConfig(Config):
-    """Development configuration."""
+    """Development — SQLite file in flask-backend/, full debug output."""
     DEBUG = True
-    TESTING = False
+    SQLALCHEMY_ECHO = False   # Flip to True to see SQL in console
 
 
 class TestingConfig(Config):
-    """Testing configuration - uses an isolated test database."""
-    DEBUG = True
+    """Testing — in-memory SQLite, tables created fresh each test run."""
+    DEBUG   = True
     TESTING = True
-    MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/website-builder-test')
-    MONGO_DBNAME = 'website-builder-test'
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
-    # Disable CSRF protection in testing
     WTF_CSRF_ENABLED = False
 
 
 class ProductionConfig(Config):
-    """Production configuration with strict security settings."""
-    DEBUG = False
+    """Production — expects DATABASE_URL env var (SQLite path or Postgres URI)."""
+    DEBUG   = False
     TESTING = False
-    # In production, ensure environment variables are set properly
-    JWT_COOKIE_SECURE = True
-    SESSION_COOKIE_SECURE = True
+    JWT_COOKIE_SECURE      = True
+    SESSION_COOKIE_SECURE  = True
 
 
-# Configuration map
+# ── Config map ────────────────────────────────────────────────────────────────
 config_map = {
     'development': DevelopmentConfig,
-    'testing': TestingConfig,
-    'production': ProductionConfig,
-    'default': DevelopmentConfig
+    'testing':     TestingConfig,
+    'production':  ProductionConfig,
+    'default':     DevelopmentConfig,
 }
 
 
