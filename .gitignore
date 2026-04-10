@@ -38,11 +38,11 @@ dmypy.json
 # ─── Environment Variables ────────────────────────────────────
 .env
 .env.local
+.env.test
 .env.development.local
 .env.test.local
 .env.production.local
-# Keep .env.test (non-sensitive test config)
-!flask-backend/.env.test
+# Note: .env.test files are excluded (copy .env.test.example to .env.test locally)
 
 # ─── Uploads / Generated Files ───────────────────────────────
 uploads/
