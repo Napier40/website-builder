@@ -1,0 +1,121 @@
+@baseUrl = http://localhost:5000/api
+@authToken = {{login.response.body.token}}
+
+### Register a new user
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "password123"
+}
+
+### Get current user profile
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+
+### Get all subscription plans
+GET {{baseUrl}}/subscriptions
+Authorization: Bearer {{authToken}}
+
+### Create a new website
+# @name createWebsite
+POST {{baseUrl}}/websites
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "My Test Website",
+  "subdomain": "my-test-website",
+  "template": "default"
+}
+
+### Get all user websites
+GET {{baseUrl}}/websites
+Authorization: Bearer {{authToken}}
+
+### Get website by ID
+GET {{baseUrl}}/websites/{{createWebsite.response.body.website._id}}
+Authorization: Bearer {{authToken}}
+
+### Update website
+PUT {{baseUrl}}/websites/{{createWebsite.response.body.website._id}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Website Name",
+  "settings": {
+    "theme": {
+      "primaryColor": "#ff0000",
+      "secondaryColor": "#00ff00"
+    }
+  }
+}
+
+### Publish website
+PUT {{baseUrl}}/websites/{{createWebsite.response.body.website._id}}/publish
+Authorization: Bearer {{authToken}}
+
+### Create a new page
+POST {{baseUrl}}/websites/{{createWebsite.response.body.website._id}}/pages
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "title": "About Us",
+  "slug": "about",
+  "content": {
+    "sections": [
+      {
+        "type": "text",
+        "heading": "About Our Company",
+        "content": "This is the about page content."
+      }
+    ]
+  },
+  "meta": {
+    "description": "About our company",
+    "keywords": "about, company"
+  }
+}
+
+### Get all templates
+GET {{baseUrl}}/templates
+
+### Execute plugin hook
+POST {{baseUrl}}/plugins/hook/dashboardWidgets
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "dashboard": "user"
+}
+
+### Admin: Get all users
+GET {{baseUrl}}/admin/users
+Authorization: Bearer {{authToken}}
+
+### Admin: Get moderation queue
+GET {{baseUrl}}/admin/moderation
+Authorization: Bearer {{authToken}}
+
+### Admin: Get audit logs
+GET {{baseUrl}}/admin/audit-logs
+Authorization: Bearer {{authToken}}
+
+### Admin: Get dashboard stats
+GET {{baseUrl}}/admin/dashboard
+Authorization: Bearer {{authToken}}

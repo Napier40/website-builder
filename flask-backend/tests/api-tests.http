@@ -1,0 +1,543 @@
+### ============================================================
+### Website Builder - Flask API Tests
+### Use with VS Code REST Client extension (humao.rest-client)
+### ============================================================
+
+@baseUrl = http://localhost:5000/api
+@contentType = application/json
+
+### ─── Variables (update after login) ───────────────────────────────────────
+@userToken = YOUR_USER_TOKEN_HERE
+@adminToken = YOUR_ADMIN_TOKEN_HERE
+@websiteId = YOUR_WEBSITE_ID_HERE
+@pageId = YOUR_PAGE_ID_HERE
+@userId = YOUR_USER_ID_HERE
+
+### ═══════════════════════════════════════════════════════════════
+### HEALTH CHECK
+### ═══════════════════════════════════════════════════════════════
+
+### Health Check
+GET {{baseUrl}}/health
+Content-Type: {{contentType}}
+
+### ═══════════════════════════════════════════════════════════════
+### AUTH ENDPOINTS
+### ═══════════════════════════════════════════════════════════════
+
+### Register New User
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "name": "John Doe",
+  "email": "john.doe@example.com",
+  "password": "SecurePass123"
+}
+
+###
+
+### Register Admin User
+POST {{baseUrl}}/auth/register
+Content-Type: {{contentType}}
+
+{
+  "name": "Admin User",
+  "email": "admin@example.com",
+  "password": "AdminPass123"
+}
+
+###
+
+### Login User
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "john.doe@example.com",
+  "password": "SecurePass123"
+}
+
+###
+
+### Login Admin
+POST {{baseUrl}}/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "admin@example.com",
+  "password": "AdminPass123"
+}
+
+###
+
+### Get Current User Profile
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Update Profile
+PUT {{baseUrl}}/auth/profile
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "name": "John Updated"
+}
+
+###
+
+### Change Password
+PUT {{baseUrl}}/auth/change-password
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "currentPassword": "SecurePass123",
+  "newPassword": "NewSecurePass456"
+}
+
+### ═══════════════════════════════════════════════════════════════
+### WEBSITES ENDPOINTS
+### ═══════════════════════════════════════════════════════════════
+
+### Get My Websites
+GET {{baseUrl}}/websites
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Create Website
+POST {{baseUrl}}/websites
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "name": "My Awesome Site",
+  "subdomain": "my-awesome-site-001",
+  "template": "default"
+}
+
+###
+
+### Get Website by ID
+GET {{baseUrl}}/websites/{{websiteId}}
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Update Website
+PUT {{baseUrl}}/websites/{{websiteId}}
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "name": "My Updated Website",
+  "settings": {
+    "theme": {
+      "primaryColor": "#e74c3c",
+      "secondaryColor": "#3498db",
+      "fontFamily": "Georgia, serif"
+    },
+    "seo": {
+      "title": "My Site | Home",
+      "description": "Welcome to my website",
+      "keywords": "website, builder, custom"
+    }
+  }
+}
+
+###
+
+### Publish Website
+PUT {{baseUrl}}/websites/{{websiteId}}/publish
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Unpublish Website
+PUT {{baseUrl}}/websites/{{websiteId}}/unpublish
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Create Page
+POST {{baseUrl}}/websites/{{websiteId}}/pages
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "title": "About Us",
+  "slug": "about",
+  "content": {
+    "sections": [
+      {
+        "type": "hero",
+        "heading": "About Our Company",
+        "subheading": "We build great things"
+      },
+      {
+        "type": "text",
+        "heading": "Our Mission",
+        "content": "To provide the best website building experience."
+      }
+    ]
+  },
+  "meta": {
+    "description": "Learn about our company",
+    "keywords": "about, company, team"
+  }
+}
+
+###
+
+### Update Page
+PUT {{baseUrl}}/websites/{{websiteId}}/pages/{{pageId}}
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "title": "About Us - Updated",
+  "isPublished": true,
+  "content": {
+    "sections": [
+      {
+        "type": "text",
+        "heading": "Updated Content",
+        "content": "New page content here."
+      }
+    ]
+  }
+}
+
+###
+
+### Delete Page
+DELETE {{baseUrl}}/websites/{{websiteId}}/pages/{{pageId}}
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Delete Website
+DELETE {{baseUrl}}/websites/{{websiteId}}
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+### ═══════════════════════════════════════════════════════════════
+### SUBSCRIPTIONS ENDPOINTS
+### ═══════════════════════════════════════════════════════════════
+
+### Get All Plans (Public)
+GET {{baseUrl}}/subscriptions
+Content-Type: {{contentType}}
+
+###
+
+### Get Current Subscription
+GET {{baseUrl}}/subscriptions/current
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Subscribe to Plan
+POST {{baseUrl}}/subscriptions/subscribe
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "planName": "basic",
+  "paymentMethodId": "pm_card_visa"
+}
+
+###
+
+### Cancel Subscription
+POST {{baseUrl}}/subscriptions/cancel
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+### ═══════════════════════════════════════════════════════════════
+### PAYMENTS ENDPOINTS
+### ═══════════════════════════════════════════════════════════════
+
+### Create Payment Intent
+POST {{baseUrl}}/payments/intent
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "amount": 9.99,
+  "currency": "usd",
+  "description": "Website Builder Basic Plan"
+}
+
+###
+
+### Get Payment History
+GET {{baseUrl}}/payments/history
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Get All Payments (Admin)
+GET {{baseUrl}}/payments/all
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+### ═══════════════════════════════════════════════════════════════
+### TEMPLATES ENDPOINTS
+### ═══════════════════════════════════════════════════════════════
+
+### Get All Templates (Public)
+GET {{baseUrl}}/templates
+Content-Type: {{contentType}}
+
+###
+
+### Get Templates by Category
+GET {{baseUrl}}/templates?category=business&isPremium=false
+Content-Type: {{contentType}}
+
+###
+
+### Get Template Categories
+GET {{baseUrl}}/templates/categories
+Content-Type: {{contentType}}
+
+###
+
+### Get Template Tags
+GET {{baseUrl}}/templates/tags
+Content-Type: {{contentType}}
+
+###
+
+### Create Template (Admin)
+POST {{baseUrl}}/templates
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "name": "modern-business",
+  "displayName": "Modern Business",
+  "description": "A sleek, modern template for businesses",
+  "category": "business",
+  "tags": ["modern", "professional", "clean"],
+  "isPremium": false,
+  "isPublic": true,
+  "content": {
+    "pages": []
+  },
+  "settings": {
+    "theme": {
+      "primaryColor": "#2c3e50",
+      "secondaryColor": "#3498db"
+    }
+  }
+}
+
+###
+
+### Save Website as Template
+POST {{baseUrl}}/templates/save-from-website/{{websiteId}}
+Authorization: Bearer {{userToken}}
+Content-Type: {{contentType}}
+
+{
+  "name": "my-template",
+  "displayName": "My Custom Template",
+  "description": "A template based on my website",
+  "category": "personal",
+  "tags": ["custom"],
+  "isPublic": false
+}
+
+### ═══════════════════════════════════════════════════════════════
+### ADMIN ENDPOINTS
+### ═══════════════════════════════════════════════════════════════
+
+### Admin Dashboard Stats
+GET {{baseUrl}}/admin/dashboard
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Get All Users
+GET {{baseUrl}}/admin/users?page=1&limit=10
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Search Users
+GET {{baseUrl}}/admin/users?search=john&role=user&subscriptionStatus=none
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Get User by ID
+GET {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Update User
+PUT {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "role": "admin",
+  "subscriptionStatus": "premium",
+  "isActive": true
+}
+
+###
+
+### Admin Delete User
+DELETE {{baseUrl}}/admin/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Flag Content for Moderation
+POST {{baseUrl}}/admin/moderation
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "contentId": "{{websiteId}}",
+  "contentModel": "Website",
+  "reason": "Contains potentially inappropriate content"
+}
+
+###
+
+### Admin Get Moderation Queue
+GET {{baseUrl}}/admin/moderation?status=pending&page=1
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Override Website Content
+PUT {{baseUrl}}/admin/websites/{{websiteId}}/override
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "content": [
+    {
+      "title": "Home",
+      "slug": "home",
+      "content": {
+        "sections": [
+          {
+            "type": "text",
+            "heading": "Content Updated by Admin",
+            "content": "This content has been reviewed and updated for compliance."
+          }
+        ]
+      },
+      "isPublished": true,
+      "meta": {}
+    }
+  ],
+  "reason": "Removed content that violated terms of service"
+}
+
+###
+
+### Admin Delete Website Content
+DELETE {{baseUrl}}/admin/websites/{{websiteId}}/delete-content
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "reason": "Website contained prohibited content"
+}
+
+###
+
+### Admin Get Audit Logs
+GET {{baseUrl}}/admin/audit-logs?page=1&limit=20
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Admin Get Audit Logs (Filtered)
+GET {{baseUrl}}/admin/audit-logs?action=LOGIN&startDate=2024-01-01T00:00:00Z
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+### ═══════════════════════════════════════════════════════════════
+### PLUGINS ENDPOINTS (Admin Only)
+### ═══════════════════════════════════════════════════════════════
+
+### Get All Plugins
+GET {{baseUrl}}/plugins
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Register Plugin
+POST {{baseUrl}}/plugins
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "name": "seo_optimizer",
+  "displayName": "SEO Optimizer",
+  "description": "Automatically optimizes website content for search engines",
+  "version": "1.0.0",
+  "author": "Website Builder Team",
+  "entryPoint": "seo_plugin.py",
+  "hooks": ["website.created", "page.updated"],
+  "settings": {
+    "autoOptimize": true,
+    "targetKeywords": []
+  }
+}
+
+###
+
+### Toggle Plugin Active/Inactive
+PUT {{baseUrl}}/plugins/PLUGIN_ID_HERE/toggle
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Get Registered Hooks
+GET {{baseUrl}}/plugins/hooks
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+###
+
+### Execute Hook
+POST {{baseUrl}}/plugins/hooks/website.created/execute
+Authorization: Bearer {{adminToken}}
+Content-Type: {{contentType}}
+
+{
+  "data": {
+    "name": "Test Site",
+    "subdomain": "test-site"
+  }
+}
