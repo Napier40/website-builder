@@ -159,7 +159,7 @@ const Checkout = () => {
         setSubscription(subRes.data.subscription);
         
         // Create payment intent
-        const intentRes = await axios.post('/api/payments/create-payment-intent', {
+        const intentRes = await axios.post('/api/payments/intent', {
           subscriptionId: id
         });
         
@@ -306,8 +306,8 @@ const Checkout = () => {
               <p>${subscription.price}/month</p>
               
               <PlanFeatures>
-                <PlanFeature>{subscription.websiteLimit} Website{subscription.websiteLimit > 1 ? 's' : ''}</PlanFeature>
-                <PlanFeature>{subscription.storageLimit} MB Storage</PlanFeature>
+                <PlanFeature>{subscription.maxWebsites === -1 ? 'Unlimited' : subscription.maxWebsites} Website{subscription.maxWebsites !== 1 ? 's' : ''}</PlanFeature>
+                {subscription.features?.map((f, i) => <PlanFeature key={i}>{f}</PlanFeature>)}
                 <PlanFeature>Free SSL Certificate</PlanFeature>
                 <PlanFeature>Mobile Responsive</PlanFeature>
                 {subscription.customDomain && <PlanFeature>Custom Domain Support</PlanFeature>}

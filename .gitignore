@@ -64,4 +64,5 @@ logs/
 Thumbs.db
 
 # ─── Misc ──────────────────────────────────────────────────────────────────
-.cache/
+.cache/flask-backend/website_builder.db
+flask-backend/*.db

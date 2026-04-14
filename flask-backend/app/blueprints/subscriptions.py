@@ -28,11 +28,17 @@ def get_plan(plan_id):
 @subscriptions_bp.route('/current', methods=['GET'])
 @jwt_required_custom
 def get_current_subscription():
-    plan = Subscription.find_by_name(g.current_user.subscription_type)
+    user = g.current_user
+    plan = Subscription.find_by_name(user.subscription_type)
+    is_paid = user.subscription_type != 'free' and user.subscription_status == 'active'
     return success_response(data={
-        'subscriptionType':   g.current_user.subscription_type,
-        'subscriptionStatus': g.current_user.subscription_status,
-        'plan': plan.to_dict() if plan else None,
+        'subscriptionType':   user.subscription_type,
+        'subscriptionStatus': user.subscription_status,
+        'hasSubscription':    is_paid,
+        'plan':               plan.to_dict() if plan else None,
+        # Convenience fields the frontend uses directly
+        'maxWebsites':        plan.max_websites if plan else 1,
+        'maxPages':           plan.max_pages    if plan else 5,
     })
 
 

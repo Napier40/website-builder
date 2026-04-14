@@ -135,3 +135,54 @@ def get_all_payments():
     page, limit, _ = get_pagination_params()
     items, total   = Payment.find_all(page=page, limit=limit)
     return paginated_response([p.to_dict() for p in items], total, page, limit)
+
+
+@payments_bp.route('/payment-methods', methods=['GET'])
+@jwt_required_custom
+def get_payment_methods():
+    """List Stripe payment methods saved for the current user."""
+    import stripe
+    from flask import current_app
+    stripe.api_key = current_app.config.get('STRIPE_SECRET_KEY', '')
+
+    user = g.current_user
+
+    # If no Stripe customer yet, return empty list
+    if not user.stripe_customer_id:
+        return success_response(data={'paymentMethods': []})
+
+    try:
+        methods = stripe.PaymentMethod.list(
+            customer=user.stripe_customer_id,
+            type='card',
+        )
+        payment_methods = [
+            {
+                'id':    pm.id,
+                'brand': pm.card.brand,
+                'last4': pm.card.last4,
+                'expMonth': pm.card.exp_month,
+                'expYear':  pm.card.exp_year,
+            }
+            for pm in methods.data
+        ]
+        return success_response(data={'paymentMethods': payment_methods})
+    except Exception as e:
+        logger.error(f"Stripe error fetching payment methods: {e}")
+        return success_response(data={'paymentMethods': []})
+
+
+@payments_bp.route('/payment-methods/<string:payment_method_id>', methods=['DELETE'])
+@jwt_required_custom
+def delete_payment_method(payment_method_id):
+    """Detach a saved Stripe payment method from the current user."""
+    import stripe
+    from flask import current_app
+    stripe.api_key = current_app.config.get('STRIPE_SECRET_KEY', '')
+
+    try:
+        stripe.PaymentMethod.detach(payment_method_id)
+        return success_response(message='Payment method removed')
+    except Exception as e:
+        logger.error(f"Stripe error detaching payment method: {e}")
+        return error_response(f'Could not remove payment method: {str(e)}', 500)

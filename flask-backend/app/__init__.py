@@ -64,6 +64,17 @@ def create_app(env=None):
     # Error handlers
     _register_error_handlers(app)
 
+    # Root route — helpful message instead of 404
+    @app.route('/', methods=['GET'])
+    def index():
+        return jsonify({
+            'success': True,
+            'message': 'Website Builder API',
+            'version': '3.0.0',
+            'docs':    '/api/health',
+            'hint':    'All endpoints are prefixed with /api/',
+        }), 200
+
     # Health check
     @app.route('/api/health', methods=['GET'])
     def health_check():

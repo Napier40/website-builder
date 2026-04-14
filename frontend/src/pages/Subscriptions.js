@@ -215,10 +215,10 @@ const Subscriptions = () => {
       
       // Fetch subscription plans
       const plansRes = await axios.get('/api/subscriptions');
-      setSubscriptionPlans(plansRes.data.subscriptions);
+      setSubscriptionPlans(plansRes.data.plans);
       
       // Fetch current subscription
-      const currentSubRes = await axios.get('/api/subscriptions/my-subscription');
+      const currentSubRes = await axios.get('/api/subscriptions/current');
       setCurrentSubscription(currentSubRes.data);
       
       // Fetch payment history
@@ -277,13 +277,13 @@ const Subscriptions = () => {
             <SubscriptionInfo>
               <SubscriptionDetails>
                 <h3>
-                  {currentSubscription.subscription.name.charAt(0).toUpperCase() + currentSubscription.subscription.name.slice(1)} Plan
-                  <SubscriptionBadge type={currentSubscription.subscription.name}>
+                  {currentSubscription.plan?.displayName || currentSubscription.subscriptionType} Plan
+                  <SubscriptionBadge type={currentSubscription.subscriptionType}>
                     Active
                   </SubscriptionBadge>
                 </h3>
                 <p>
-                  Your subscription renews on {new Date(currentSubscription.stripeDetails.currentPeriodEnd).toLocaleDateString()}
+                  {currentSubscription.maxWebsites === -1 ? 'Unlimited' : currentSubscription.maxWebsites} websites allowed
                 </p>
               </SubscriptionDetails>
               
@@ -297,26 +297,11 @@ const Subscriptions = () => {
             
             <SubscriptionFeatures>
               <SubscriptionFeature>
-                {currentSubscription.subscription.websiteLimit} Website{currentSubscription.subscription.websiteLimit > 1 ? 's' : ''}
+                {currentSubscription.maxWebsites === -1 ? 'Unlimited' : currentSubscription.maxWebsites} Website{currentSubscription.maxWebsites !== 1 ? 's' : ''}
               </SubscriptionFeature>
-              <SubscriptionFeature>
-                {currentSubscription.subscription.storageLimit} MB Storage
-              </SubscriptionFeature>
-              {currentSubscription.subscription.customDomain && (
-                <SubscriptionFeature>
-                  Custom Domain Support
-                </SubscriptionFeature>
-              )}
-              {currentSubscription.subscription.analytics && (
-                <SubscriptionFeature>
-                  Advanced Analytics
-                </SubscriptionFeature>
-              )}
-              {currentSubscription.subscription.ecommerce && (
-                <SubscriptionFeature>
-                  E-commerce Features
-                </SubscriptionFeature>
-              )}
+              {currentSubscription.plan?.features?.map((feature, i) => (
+                <SubscriptionFeature key={i}>{feature}</SubscriptionFeature>
+              ))}
             </SubscriptionFeatures>
           </>
         ) : (
@@ -339,7 +324,7 @@ const Subscriptions = () => {
       <PlansGrid>
         {subscriptionPlans.map(plan => (
           <PlanCard 
-            key={plan._id} 
+            key={plan.id} 
             popular={plan.name === 'premium'}
           >
             {plan.name === 'premium' && <PopularBadge>Most Popular</PopularBadge>}
@@ -350,22 +335,20 @@ const Subscriptions = () => {
               ${plan.price} <span>/month</span>
             </PlanPrice>
             <PlanFeatures>
-              <PlanFeature>{plan.websiteLimit} Website{plan.websiteLimit > 1 ? 's' : ''}</PlanFeature>
-              <PlanFeature>{plan.storageLimit} MB Storage</PlanFeature>
+              <PlanFeature>{plan.maxWebsites === -1 ? 'Unlimited' : plan.maxWebsites} Website{plan.maxWebsites !== 1 ? 's' : ''}</PlanFeature>
+              
               <PlanFeature>Free SSL Certificate</PlanFeature>
               <PlanFeature>Mobile Responsive</PlanFeature>
-              {plan.customDomain && <PlanFeature>Custom Domain Support</PlanFeature>}
-              {plan.analytics && <PlanFeature>Advanced Analytics</PlanFeature>}
-              {plan.ecommerce && <PlanFeature>E-commerce Features</PlanFeature>}
+              {plan.features?.map((f, i) => <PlanFeature key={i}>{f}</PlanFeature>)}
               {plan.name === 'enterprise' && <PlanFeature>Priority Support</PlanFeature>}
             </PlanFeatures>
             <Button 
-              variant={currentSubscription?.subscription?.name === plan.name ? 'light' : 'primary'} 
+              variant={currentSubscription?.subscriptionType === plan.name ? 'light' : 'primary'} 
               block
-              disabled={currentSubscription?.subscription?.name === plan.name}
-              onClick={() => handleSubscribe(plan._id)}
+              disabled={currentSubscription?.subscriptionType === plan.name}
+              onClick={() => handleSubscribe(plan.id)}
             >
-              {currentSubscription?.subscription?.name === plan.name ? 'Current Plan' : 'Select Plan'}
+              {currentSubscription?.subscriptionType === plan.name ? 'Current Plan' : 'Select Plan'}
             </Button>
           </PlanCard>
         ))}
@@ -387,13 +370,13 @@ const Subscriptions = () => {
               </thead>
               <tbody>
                 {paymentHistory.map(payment => (
-                  <tr key={payment._id}>
+                  <tr key={payment.id}>
                     <td>{new Date(payment.createdAt).toLocaleDateString()}</td>
-                    <td>{payment.subscription.name.charAt(0).toUpperCase() + payment.subscription.name.slice(1)}</td>
+                    <td>{payment.subscriptionType ? payment.subscriptionType.charAt(0).toUpperCase() + payment.subscriptionType.slice(1) : 'N/A'}</td>
                     <td>${payment.amount}</td>
                     <td>
                       <span style={{ 
-                        color: payment.status === 'completed' ? 'var(--success-color)' : 
+                        color: payment.status === 'succeeded' ? 'var(--success-color)' : 
                                payment.status === 'failed' ? 'var(--danger-color)' : 
                                'var(--warning-color)'
                       }}>

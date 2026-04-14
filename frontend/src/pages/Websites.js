@@ -313,10 +313,10 @@ const Websites = () => {
     if (!websiteToDelete) return;
     
     try {
-      await axios.delete(`/api/websites/${websiteToDelete._id}`);
+      await axios.delete(`/api/websites/${websiteToDelete.id}`);
       
       // Remove website from state
-      setWebsites(websites.filter(website => website._id !== websiteToDelete._id));
+      setWebsites(websites.filter(website => website.id !== websiteToDelete.id));
       
       // Close modal
       setIsDeleteModalOpen(false);
@@ -329,14 +329,14 @@ const Websites = () => {
   const handlePublishToggle = async (website) => {
     try {
       if (website.isPublished) {
-        await axios.put(`/api/websites/${website._id}/unpublish`);
+        await axios.put(`/api/websites/${website.id}/unpublish`);
       } else {
-        await axios.put(`/api/websites/${website._id}/publish`);
+        await axios.put(`/api/websites/${website.id}/publish`);
       }
       
       // Update website in state
       setWebsites(websites.map(w => {
-        if (w._id === website._id) {
+        if (w.id === website.id) {
           return { ...w, isPublished: !w.isPublished };
         }
         return w;
@@ -420,7 +420,7 @@ const Websites = () => {
       ) : (
         <WebsiteGrid>
           {filteredWebsites.map(website => (
-            <WebsiteCard key={website._id}>
+            <WebsiteCard key={website.id}>
               <WebsiteCardBody>
                 <WebsiteTitle>{website.name}</WebsiteTitle>
                 <WebsiteUrl>
@@ -438,7 +438,7 @@ const Websites = () => {
               </WebsiteCardBody>
               
               <WebsiteActions>
-                <Button to={`/builder/${website._id}`} variant="primary">
+                <Button to={`/builder/${website.id}`} variant="primary">
                   Edit
                 </Button>
                 <Button 

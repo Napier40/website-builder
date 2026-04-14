@@ -221,7 +221,7 @@ const WebsiteBuilder = () => {
   
   const handlePageChange = (e) => {
     const pageId = e.target.value;
-    const page = website.pages.find(p => p._id === pageId);
+    const page = website.pages.find(p => p.id === pageId);
     setCurrentPage(page);
   };
   
@@ -293,9 +293,9 @@ const WebsiteBuilder = () => {
             <i className="fas fa-arrow-left"></i> Exit
           </Button>
           
-          <PageSelector value={currentPage?._id} onChange={handlePageChange}>
+          <PageSelector value={currentPage?.id} onChange={handlePageChange}>
             {website.pages.map(page => (
-              <option key={page._id} value={page._id}>
+              <option key={page.id} value={page.id}>
                 {page.title}
               </option>
             ))}

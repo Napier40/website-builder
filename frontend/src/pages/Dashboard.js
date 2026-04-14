@@ -187,7 +187,7 @@ const Dashboard = () => {
         setWebsites(websitesRes.data.websites);
         
         // Fetch subscription
-        const subscriptionRes = await axios.get('/api/subscriptions/my-subscription');
+        const subscriptionRes = await axios.get('/api/subscriptions/current');
         setSubscription(subscriptionRes.data);
         
         setLoading(false);
@@ -230,20 +230,18 @@ const Dashboard = () => {
         
         <StatCard>
           <StatValue>
-            {subscription?.hasSubscription ? 
-              subscription.subscription.websiteLimit - websites.length : 
-              1 - websites.length}
+            {subscription?.hasSubscription
+              ? (subscription.maxWebsites === -1 ? '∞' : subscription.maxWebsites - websites.length)
+              : 1 - websites.length}
           </StatValue>
           <StatLabel>Remaining Websites</StatLabel>
         </StatCard>
         
         <StatCard>
           <StatValue>
-            {subscription?.hasSubscription ? 
-              `${subscription.subscription.storageLimit} MB` : 
-              '100 MB'}
+            {subscription?.plan?.displayName || 'Free'}
           </StatValue>
-          <StatLabel>Storage Limit</StatLabel>
+          <StatLabel>Current Plan</StatLabel>
         </StatCard>
       </StatsGrid>
       
@@ -253,12 +251,12 @@ const Dashboard = () => {
             <h3>
               Current Plan
               <SubscriptionBadge type={user?.subscriptionStatus}>
-                {user?.subscriptionStatus === 'none' ? 'Free Plan' : `${user?.subscriptionStatus.charAt(0).toUpperCase() + user?.subscriptionStatus.slice(1)} Plan`}
+                {user?.subscriptionType === 'free' ? 'Free Plan' : `${(user?.subscriptionType || 'free').charAt(0).toUpperCase() + (user?.subscriptionType || 'free').slice(1)} Plan`}
               </SubscriptionBadge>
             </h3>
             {subscription?.hasSubscription ? (
               <p>
-                Your subscription renews on {new Date(subscription.stripeDetails.currentPeriodEnd).toLocaleDateString()}
+                {subscription.plan?.displayName} plan &mdash; {subscription.maxWebsites === -1 ? 'Unlimited' : subscription.maxWebsites} websites allowed
               </p>
             ) : (
               <p>Upgrade to create more websites and access premium features</p>
@@ -275,7 +273,7 @@ const Dashboard = () => {
       {recentWebsites.length > 0 ? (
         <WebsiteGrid>
           {recentWebsites.map(website => (
-            <WebsiteCard key={website._id}>
+            <WebsiteCard key={website.id}>
               <WebsiteCardBody>
                 <WebsiteTitle>{website.name}</WebsiteTitle>
                 <WebsiteUrl>
@@ -286,7 +284,7 @@ const Dashboard = () => {
                 </WebsiteStatus>
               </WebsiteCardBody>
               <WebsiteActions>
-                <Button to={`/builder/${website._id}`} variant="primary" block>
+                <Button to={`/builder/${website.id}`} variant="primary" block>
                   Edit
                 </Button>
                 <Button to={`https://${website.subdomain}.example.com`} target="_blank" variant="outline" block>
