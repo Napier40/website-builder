@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 
@@ -18,6 +18,7 @@ import WebsiteBuilder from './pages/WebsiteBuilder';
 import Subscriptions from './pages/Subscriptions';
 import Checkout from './pages/Checkout';
 import Account from './pages/Account';
+import Admin from './pages/Admin';
 import NotFound from './pages/NotFound';
 
 // Context
@@ -27,8 +28,8 @@ import PrivateRoute from './components/routing/PrivateRoute';
 // Styles
 import './App.css';
 
-// Initialize Stripe
-const stripePromise = loadStripe('your_stripe_publishable_key');
+// Initialize Stripe (set REACT_APP_STRIPE_PUBLISHABLE_KEY in frontend/.env)
+const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || '');
 
 function App() {
   return (
@@ -97,6 +98,15 @@ function App() {
                 </PrivateRoute>
               } />
               
+              <Route path="/admin" element={
+                <PrivateRoute>
+                  <div className="dashboard-layout">
+                    <Sidebar />
+                    <Admin />
+                  </div>
+                </PrivateRoute>
+              } />
+
               {/* 404 Route */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -106,8 +106,8 @@ const Sidebar = () => {
         <UserInfo>
           <UserName>{user.name}</UserName>
           <UserEmail>{user.email}</UserEmail>
-          <SubscriptionBadge type={user.subscriptionStatus}>
-            {user.subscriptionStatus === 'none' ? 'Free Plan' : `${user.subscriptionStatus.charAt(0).toUpperCase() + user.subscriptionStatus.slice(1)} Plan`}
+          <SubscriptionBadge type={user.subscriptionType}>
+            {(user.subscriptionType === 'free' || !user.subscriptionType) ? 'Free Plan' : `${user.subscriptionType.charAt(0).toUpperCase() + user.subscriptionType.slice(1)} Plan`}
           </SubscriptionBadge>
         </UserInfo>
       )}
@@ -133,6 +133,13 @@ const Sidebar = () => {
             Account Settings
           </SidebarLink>
         </SidebarItem>
+        {user?.role === 'admin' && (
+          <SidebarItem>
+            <SidebarLink to="/admin" className={isActive('/admin')}>
+              Admin Panel
+            </SidebarLink>
+          </SidebarItem>
+        )}
       </SidebarNav>
     </SidebarContainer>
   );

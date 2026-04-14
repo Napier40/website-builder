@@ -220,7 +220,7 @@ const WebsiteBuilder = () => {
   };
   
   const handlePageChange = (e) => {
-    const pageId = e.target.value;
+    const pageId = parseInt(e.target.value, 10);
     const page = website.pages.find(p => p.id === pageId);
     setCurrentPage(page);
   };
@@ -228,16 +228,26 @@ const WebsiteBuilder = () => {
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      
-      // In a real implementation, we would save the current page content
-      // For now, we'll just simulate a delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      if (currentPage) {
+        await axios.put(`/api/websites/${id}/pages/${currentPage.id}`, {
+          content: currentPage.content,
+          title:   currentPage.title,
+          slug:    currentPage.slug,
+        });
+      }
       setIsSaving(false);
     } catch (err) {
       setError('Failed to save changes');
       setIsSaving(false);
     }
+  };
+
+  const handleContentChange = (newContent) => {
+    setCurrentPage(prev => ({ ...prev, content: newContent }));
+    setWebsite(prev => ({
+      ...prev,
+      pages: prev.pages.map(p => p.id === currentPage.id ? { ...p, content: newContent } : p)
+    }));
   };
   
   const handlePublish = async () => {
@@ -478,18 +488,48 @@ const WebsiteBuilder = () => {
             width: device === 'desktop' ? '100%' : device === 'tablet' ? '768px' : '375px',
             margin: '0 auto'
           }}>
-            {currentPage && currentPage.content && Object.keys(currentPage.content).length > 0 ? (
+            {currentPage ? (
               <div>
-                {/* This is where the actual page content would be rendered */}
-                <h1>Page Content Placeholder</h1>
-                <p>This is a placeholder for the actual drag-and-drop website builder interface.</p>
-                <p>In a real implementation, this would render the page content based on the JSON structure.</p>
+                {/* Live HTML preview */}
+                {currentPage.content ? (
+                  <div
+                    dangerouslySetInnerHTML={{ __html: currentPage.content }}
+                    style={{ minHeight: '200px' }}
+                  />
+                ) : (
+                  <EmptyCanvas>
+                    <i className="fas fa-plus-circle"></i>
+                    <h3>This page is empty</h3>
+                    <p>Use the HTML editor below to add content.</p>
+                  </EmptyCanvas>
+                )}
+                {/* HTML Editor */}
+                <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+                  <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>
+                    HTML Editor
+                  </label>
+                  <textarea
+                    value={currentPage.content || ''}
+                    onChange={e => handleContentChange(e.target.value)}
+                    style={{
+                      width: '100%',
+                      minHeight: '200px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem',
+                      padding: '0.75rem',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      resize: 'vertical',
+                    }}
+                    placeholder="Enter HTML content for this page..."
+                  />
+                </div>
               </div>
             ) : (
               <EmptyCanvas>
                 <i className="fas fa-plus-circle"></i>
-                <h3>This page is empty</h3>
-                <p>Drag elements from the sidebar to start building your page.</p>
+                <h3>No page selected</h3>
+                <p>Select a page from the dropdown above.</p>
               </EmptyCanvas>
             )}
           </PageContainer>

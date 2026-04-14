@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
+
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Spinner from '../components/common/Spinner';
@@ -202,7 +202,7 @@ const Subscriptions = () => {
   const [error, setError] = useState(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   
-  const { user } = useContext(AuthContext);
+  
   const navigate = useNavigate();
   
   useEffect(() => {

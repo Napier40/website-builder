@@ -95,14 +95,42 @@ def update_profile():
     if 'name' in data and data['name'].strip():
         allowed['name'] = data['name'].strip()
 
-    if not allowed:
-        return error_response('No valid fields to update', 400)
+    # Allow email update if provided and different
+    if 'email' in data and data['email'].strip():
+        new_email = data['email'].strip().lower()
+        if not validate_email(new_email):
+            return error_response('Invalid email address', 400)
+        if new_email != g.current_user.email:
+            existing = User.find_by_email(new_email)
+            if existing:
+                return error_response('Email already in use', 409)
+            # Update email directly via SQLAlchemy
+            from app.database import db
+            from datetime import datetime, timezone
+            g.current_user.email = new_email
+            g.current_user.updated_at = datetime.now(timezone.utc)
+            db.session.commit()
 
-    g.current_user.update(**allowed)
+    if allowed:
+        g.current_user.update(**allowed)
+
     return success_response(
         data={'user': g.current_user.to_dict()},
         message='Profile updated',
     )
+
+
+@auth_bp.route('/me', methods=['DELETE'])
+@jwt_required_custom
+def delete_account():
+    """Delete the current user's account and all associated data."""
+    user = g.current_user
+    user_id = user.id
+    user.delete()
+    AuditLog.create_log(user_id=user_id, action='DELETE',
+                        resource_model='User', resource_id=user_id,
+                        description='Account deleted by user')
+    return success_response(message='Account deleted successfully')
 
 
 @auth_bp.route('/change-password', methods=['PUT'])

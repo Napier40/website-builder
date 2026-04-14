@@ -74,8 +74,8 @@ const Header = () => {
 
   const guestLinks = (
     <>
-      <NavLink to="/features">Features</NavLink>
-      <NavLink to="/pricing">Pricing</NavLink>
+      <NavLink to="/#features">Features</NavLink>
+      <NavLink to="/#pricing">Pricing</NavLink>
       <Button to="/register">Sign Up</Button>
       <NavLink to="/login">Login</NavLink>
     </>

@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import styled from 'styled-components';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -93,7 +94,8 @@ const CardDetails = styled.div`
 `;
 
 const Account = () => {
-  const { user, updateProfile, changePassword } = useContext(AuthContext);
+  const { user, updateProfile, changePassword, logout } = useContext(AuthContext);
+  const navigate = useNavigate();
   
   const [profileData, setProfileData] = useState({
     name: '',
@@ -116,6 +118,8 @@ const Account = () => {
   const [passwordSuccess, setPasswordSuccess] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletePaymentId, setDeletePaymentId] = useState(null);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState(null);
   
   useEffect(() => {
     if (user) {
@@ -219,15 +223,22 @@ const Account = () => {
   const confirmDeletePaymentMethod = async () => {
     try {
       await axios.delete(`/api/payments/payment-methods/${deletePaymentId}`);
-      
-      // Update payment methods list
       setPaymentMethods(paymentMethods.filter(method => method.id !== deletePaymentId));
-      
-      // Close modal
       setIsDeleteModalOpen(false);
       setDeletePaymentId(null);
     } catch (err) {
       setPaymentError('Failed to delete payment method');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      await axios.delete('/api/auth/me');
+      logout();
+      navigate('/');
+    } catch (err) {
+      setDeleteAccountError(err.response?.data?.message || 'Failed to delete account');
+      setIsDeleteAccountModalOpen(false);
     }
   };
   
@@ -345,10 +356,10 @@ const Account = () => {
                 {paymentMethods.map(method => (
                   <PaymentMethodCard key={method.id}>
                     <CardInfo>
-                      <i className={`fab fa-cc-${method.card.brand.toLowerCase()}`}></i>
+                      <i className={`fab fa-cc-${(method.brand || 'visa').toLowerCase()}`}></i>
                       <CardDetails>
-                        <p>{method.card.brand} •••• {method.card.last4}</p>
-                        <p>Expires {method.card.exp_month}/{method.card.exp_year}</p>
+                        <p>{method.brand} •••• {method.last4}</p>
+                        <p>Expires {method.expMonth}/{method.expYear}</p>
                       </CardDetails>
                     </CardInfo>
                     <Button 
@@ -369,8 +380,9 @@ const Account = () => {
           </Card>
           
           <Card title="Danger Zone" style={{ marginTop: '2rem' }}>
-            <p>Delete your account and all associated data.</p>
-            <Button variant="danger">
+            {deleteAccountError && <Alert type="danger" message={deleteAccountError} onClose={() => setDeleteAccountError(null)} />}
+            <p>Permanently delete your account and all associated data. This cannot be undone.</p>
+            <Button variant="danger" onClick={() => setIsDeleteAccountModalOpen(true)}>
               Delete Account
             </Button>
           </Card>
@@ -396,6 +408,27 @@ const Account = () => {
       >
         <p>Are you sure you want to delete this payment method?</p>
         <p>This action cannot be undone.</p>
+      </Modal>
+
+      {/* Delete Account Modal */}
+      <Modal
+        isOpen={isDeleteAccountModalOpen}
+        onClose={() => setIsDeleteAccountModalOpen(false)}
+        title="Delete Account"
+        size="small"
+        footer={
+          <>
+            <Button variant="light" onClick={() => setIsDeleteAccountModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDeleteAccount}>
+              Yes, Delete My Account
+            </Button>
+          </>
+        }
+      >
+        <p><strong>Are you sure you want to delete your account?</strong></p>
+        <p>This will permanently delete your account, all your websites, and all associated data. This action cannot be undone.</p>
       </Modal>
     </AccountContainer>
   );
