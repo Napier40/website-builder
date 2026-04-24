@@ -70,14 +70,46 @@ def subscribe():
 @subscriptions_bp.route('/cancel', methods=['POST'])
 @jwt_required_custom
 def cancel_subscription():
-    g.current_user.update(
+    user = g.current_user
+    
+    # Cancel Stripe subscription if exists
+    stripe_cancellation = None
+    if user.stripe_customer_id:
+        try:
+            stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
+            # List active subscriptions for the customer
+            subscriptions = stripe.Subscription.list(
+                customer=user.stripe_customer_id,
+                status='active'
+            )
+            
+            for sub in subscriptions.data:
+                stripe.Subscription.cancel(sub.id)
+                stripe_cancellation = sub.id
+                
+        except stripe.error.StripeError as e:
+            # Log but don't fail - local cancellation is still important
+            pass
+        except Exception as e:
+            pass
+    
+    # Update local subscription status
+    user.update(
         subscription_type='free',
         subscription_status='cancelled',
     )
-    AuditLog.create_log(user_id=g.current_user.id, action='SUBSCRIPTION_CHANGE',
-                        resource_model='Subscription',
-                        description='Subscription cancelled — reverted to free')
-    return success_response(message='Subscription cancelled. You have been moved to the free plan.')
+    
+    AuditLog.create_log(
+        user_id=user.id, 
+        action='SUBSCRIPTION_CHANGE',
+        resource_model='Subscription',
+        description=f'Subscription cancelled — reverted to free. Stripe sub: {stripe_cancellation or "N/A"}'
+    )
+    
+    return success_response(
+        message='Subscription cancelled. You have been moved to the free plan.',
+        data={'stripe_cancelled': stripe_cancellation is not None}
+    )
 
 
 @subscriptions_bp.route('/<int:plan_id>', methods=['PUT'])

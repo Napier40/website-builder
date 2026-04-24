@@ -1,350 +1,743 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
-import Card from '../components/common/Card';
-import Button from '../components/common/Button';
-import Spinner from '../components/common/Spinner';
-import Alert from '../components/common/Alert';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-const AdminContainer = styled.div`
-  flex: 1;
+const Container = styled.div`
+  min-height: 100vh;
+  background: #0a0a0a;
+  color: white;
   padding: 2rem;
 `;
 
-const AdminTitle = styled.h1`
-  margin: 0 0 2rem;
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+`;
+
+const Title = styled.h1`
   font-size: 2rem;
+  background: linear-gradient(135deg, #00ff88, #00d4ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+`;
+
+const LogoutButton = styled.button`
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
 `;
 
 const StatsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
-
-  @media (max-width: 1200px) { grid-template-columns: repeat(2, 1fr); }
-  @media (max-width: 600px)  { grid-template-columns: 1fr; }
 `;
 
-const StatCard = styled(Card)`
-  text-align: center;
-`;
-
-const StatValue = styled.div`
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: var(--primary-color);
+const StatCard = styled.div`
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
 `;
 
 const StatLabel = styled.div`
-  color: #666;
+  color: rgba(255, 255, 255, 0.6);
   font-size: 0.9rem;
-  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+`;
+
+const StatValue = styled.div`
+  font-size: 2rem;
+  font-weight: bold;
+  color: #00ff88;
+`;
+
+const Section = styled.div`
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
 `;
 
 const SectionTitle = styled.h2`
-  margin: 2rem 0 1rem;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const SearchBar = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const SearchInput = styled.input`
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+
+  &::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #00ff88;
+  }
 `;
 
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
-
-  th, td {
-    padding: 0.75rem 1rem;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-    font-size: 0.95rem;
-  }
-
-  th { background: #f8f9fa; font-weight: 600; }
-  tr:hover td { background: #f8f9fa; }
 `;
 
-const Badge = styled.span`
-  display: inline-block;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
+const Th = styled.th`
+  text-align: left;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+`;
+
+const Td = styled.td`
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+`;
+
+const StatusBadge = styled.span`
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
   font-size: 0.8rem;
-  font-weight: 600;
-  background-color: ${props => {
-    switch (props.type) {
-      case 'admin':    return '#e74c3c';
-      case 'premium':  return '#2ecc71';
-      case 'basic':    return '#3498db';
-      case 'enterprise': return '#9b59b6';
-      case 'active':   return '#2ecc71';
-      case 'pending':  return '#f39c12';
-      case 'approved': return '#2ecc71';
-      case 'rejected': return '#e74c3c';
-      default:         return '#95a5a6';
+  font-weight: 500;
+  background: ${props => {
+    switch (props.status) {
+      case 'active': return 'rgba(0, 255, 136, 0.2)';
+      case 'published': return 'rgba(0, 255, 136, 0.2)';
+      case 'draft': return 'rgba(255, 193, 7, 0.2)';
+      case 'suspended': return 'rgba(255, 107, 107, 0.2)';
+      case 'pending': return 'rgba(255, 193, 7, 0.2)';
+      case 'approved': return 'rgba(0, 255, 136, 0.2)';
+      case 'rejected': return 'rgba(255, 107, 107, 0.2)';
+      default: return 'rgba(255, 255, 255, 0.1)';
     }
   }};
-  color: #fff;
+  color: ${props => {
+    switch (props.status) {
+      case 'active': return '#00ff88';
+      case 'published': return '#00ff88';
+      case 'draft': return '#ffc107';
+      case 'suspended': return '#ff6b6b';
+      case 'pending': return '#ffc107';
+      case 'approved': return '#00ff88';
+      case 'rejected': return '#ff6b6b';
+      default: return 'white';
+    }
+  }};
 `;
 
-const Admin = () => {
-  const { user } = useContext(AuthContext);
+const ActionButton = styled.button`
+  background: ${props => props.danger ? 'rgba(255, 107, 107, 0.2)' : 'rgba(0, 255, 136, 0.2)'};
+  border: none;
+  color: ${props => props.danger ? '#ff6b6b' : '#00ff88'};
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${props => props.danger ? 'rgba(255, 107, 107, 0.3)' : 'rgba(0, 255, 136, 0.3)'};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const Pagination = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+`;
+
+const PageButton = styled.button`
+  background: ${props => props.active ? 'rgba(0, 255, 136, 0.3)' : 'rgba(255, 255, 255, 0.1)'};
+  border: 1px solid ${props => props.active ? '#00ff88' : 'rgba(255, 255, 255, 0.2)'};
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: rgba(0, 255, 136, 0.2);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const PageInfo = styled.span`
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+`;
+
+const TabContainer = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+`;
+
+const Tab = styled.button`
+  background: ${props => props.active ? 'rgba(0, 255, 136, 0.2)' : 'rgba(255, 255, 255, 0.05)'};
+  border: 1px solid ${props => props.active ? '#00ff88' : 'rgba(255, 255, 255, 0.1)'};
+  color: ${props => props.active ? '#00ff88' : 'white'};
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(0, 255, 136, 0.15);
+  }
+`;
+
+const LoadingSpinner = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  color: rgba(255, 255, 255, 0.6);
+`;
+
+const ErrorMessage = styled.div`
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #ff6b6b;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+`;
+
+const ITEMS_PER_PAGE = 10;
+
+function Admin() {
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalWebsites: 0,
+    publishedWebsites: 0,
+    pendingModeration: 0
+  });
+  const [users, setUsers] = useState([]);
+  const [websites, setWebsites] = useState([]);
+  const [moderation, setModeration] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  // Pagination state
+  const [userPage, setUserPage] = useState(1);
+  const [websitePage, setWebsitePage] = useState(1);
+  const [moderationPage, setModerationPage] = useState(1);
+  
+  // Search state
+  const [userSearch, setUserSearch] = useState('');
+  const [websiteSearch, setWebsiteSearch] = useState('');
+  
+  // Active tab
+  const [activeTab, setActiveTab] = useState('users');
 
-  const [stats, setStats]               = useState(null);
-  const [users, setUsers]               = useState([]);
-  const [modQueue, setModQueue]         = useState([]);
-  const [auditLogs, setAuditLogs]       = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState(null);
-  const [activeTab, setActiveTab]       = useState('dashboard');
-
-  // Redirect non-admins
   useEffect(() => {
-    if (user && user.role !== 'admin') {
-      navigate('/dashboard');
+    if (!user || user.role !== 'admin') {
+      navigate('/');
+      return;
     }
+    
+    fetchData();
   }, [user, navigate]);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  const fetchDashboard = async () => {
+  const fetchData = async () => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      const [statsRes, usersRes, modRes, logsRes] = await Promise.all([
-        axios.get('/api/admin/dashboard'),
-        axios.get('/api/admin/users?limit=20'),
-        axios.get('/api/admin/moderation?status=pending&limit=20'),
-        axios.get('/api/admin/audit-logs?limit=20'),
-      ]);
-      setStats(statsRes.data.stats);
-      setUsers(usersRes.data.users || []);
-      setModQueue(modRes.data.reports || []);
-      setAuditLogs(logsRes.data.logs || []);
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to load admin data');
-      setLoading(false);
-    }
-  };
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
 
-  const handleUpdateUserRole = async (userId, newRole) => {
-    try {
-      await axios.put(`/api/admin/users/${userId}`, { role: newRole });
-      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      // Fetch stats
+      const statsRes = await fetch('/api/admin/stats', { headers });
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        // Map API response correctly - API returns flat structure
+        setStats({
+          totalUsers: statsData.total_users || statsData.totalUsers || 0,
+          totalWebsites: statsData.total_websites || statsData.totalWebsites || 0,
+          publishedWebsites: statsData.published_websites || statsData.publishedWebsites || 0,
+          pendingModeration: statsData.pending_moderation || statsData.pendingModeration || 0
+        });
+      }
+
+      // Fetch users
+      const usersRes = await fetch('/api/admin/users', { headers });
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setUsers(usersData.users || usersData || []);
+      }
+
+      // Fetch websites
+      const websitesRes = await fetch('/api/admin/websites', { headers });
+      if (websitesRes.ok) {
+        const websitesData = await websitesRes.json();
+        setWebsites(websitesData.websites || websitesData || []);
+      }
+
+      // Fetch moderation queue
+      const modRes = await fetch('/api/admin/moderation', { headers });
+      if (modRes.ok) {
+        const modData = await modRes.json();
+        setModeration(modData.items || modData || []);
+      }
     } catch (err) {
-      setError('Failed to update user role');
+      console.error('Error fetching admin data:', err);
+      setError('Failed to load admin data. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Delete this user and all their data?')) return;
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
+
     try {
-      await axios.delete(`/api/admin/users/${userId}`);
-      setUsers(users.filter(u => u.id !== userId));
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        setUsers(users.filter(u => u.id !== userId));
+        setStats(prev => ({
+          ...prev,
+          totalUsers: prev.totalUsers - 1
+        }));
+      } else {
+        alert('Failed to delete user');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete user');
+      console.error('Error deleting user:', err);
+      alert('Error deleting user');
     }
   };
 
-  const handleReviewMod = async (modId, status) => {
+  const handleDeleteWebsite = async (websiteId) => {
+    if (!window.confirm('Are you sure you want to delete this website? This action cannot be undone.')) {
+      return;
+    }
+
     try {
-      await axios.put(`/api/admin/moderation/${modId}`, { status, notes: `Marked ${status} by admin` });
-      setModQueue(modQueue.filter(m => m.id !== modId));
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/websites/${websiteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        setWebsites(websites.filter(w => w.id !== websiteId));
+        setStats(prev => ({
+          ...prev,
+          totalWebsites: prev.totalWebsites - 1
+        }));
+      } else {
+        alert('Failed to delete website');
+      }
     } catch (err) {
-      setError('Failed to review report');
+      console.error('Error deleting website:', err);
+      alert('Error deleting website');
     }
   };
 
-  if (loading) return <Spinner fullPage />;
+  const handleModeration = async (itemId, action) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/moderation/${itemId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action })
+      });
 
-  const tabs = ['dashboard', 'users', 'moderation', 'audit-logs'];
+      if (res.ok) {
+        setModeration(moderation.filter(m => m.id !== itemId));
+        setStats(prev => ({
+          ...prev,
+          pendingModeration: prev.pendingModeration - 1
+        }));
+      } else {
+        alert('Failed to update moderation status');
+      }
+    } catch (err) {
+      console.error('Error updating moderation:', err);
+      alert('Error updating moderation status');
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  // Filter users based on search
+  const filteredUsers = users.filter(user => 
+    user.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    user.name?.toLowerCase().includes(userSearch.toLowerCase())
+  );
+
+  // Filter websites based on search
+  const filteredWebsites = websites.filter(website =>
+    website.name?.toLowerCase().includes(websiteSearch.toLowerCase()) ||
+    website.subdomain?.toLowerCase().includes(websiteSearch.toLowerCase())
+  );
+
+  // Pagination calculations
+  const totalUserPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+  const totalWebsitePages = Math.ceil(filteredWebsites.length / ITEMS_PER_PAGE);
+  const totalModerationPages = Math.ceil(moderation.length / ITEMS_PER_PAGE);
+
+  const paginatedUsers = filteredUsers.slice(
+    (userPage - 1) * ITEMS_PER_PAGE,
+    userPage * ITEMS_PER_PAGE
+  );
+
+  const paginatedWebsites = filteredWebsites.slice(
+    (websitePage - 1) * ITEMS_PER_PAGE,
+    websitePage * ITEMS_PER_PAGE
+  );
+
+  const paginatedModeration = moderation.slice(
+    (moderationPage - 1) * ITEMS_PER_PAGE,
+    moderationPage * ITEMS_PER_PAGE
+  );
+
+  // Reset page when search changes
+  useEffect(() => {
+    setUserPage(1);
+  }, [userSearch]);
+
+  useEffect(() => {
+    setWebsitePage(1);
+  }, [websiteSearch]);
+
+  if (loading) {
+    return (
+      <Container>
+        <LoadingSpinner>Loading admin dashboard...</LoadingSpinner>
+      </Container>
+    );
+  }
 
   return (
-    <AdminContainer>
-      <AdminTitle>Admin Panel</AdminTitle>
+    <Container>
+      <Header>
+        <Title>Admin Dashboard</Title>
+        <LogoutButton onClick={handleLogout}>Logout</LogoutButton>
+      </Header>
 
-      {error && <Alert type="danger" message={error} onClose={() => setError(null)} />}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+
+      {/* Stats Grid */}
+      <StatsGrid>
+        <StatCard>
+          <StatLabel>Total Users</StatLabel>
+          <StatValue>{stats.totalUsers || 0}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatLabel>Total Websites</StatLabel>
+          <StatValue>{stats.totalWebsites || 0}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatLabel>Published Websites</StatLabel>
+          <StatValue>{stats.publishedWebsites || 0}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatLabel>Pending Moderation</StatLabel>
+          <StatValue>{stats.pendingModeration || 0}</StatValue>
+        </StatCard>
+      </StatsGrid>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '2px solid #eee', paddingBottom: '0' }}>
-        {tabs.map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              padding: '0.75rem 1.5rem',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === tab ? '2px solid var(--primary-color)' : '2px solid transparent',
-              color: activeTab === tab ? 'var(--primary-color)' : '#666',
-              fontWeight: activeTab === tab ? 600 : 400,
-              cursor: 'pointer',
-              fontSize: '1rem',
-              marginBottom: '-2px',
-            }}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1).replace('-', ' ')}
-          </button>
-        ))}
-      </div>
+      <TabContainer>
+        <Tab active={activeTab === 'users'} onClick={() => setActiveTab('users')}>
+          Users
+        </Tab>
+        <Tab active={activeTab === 'websites'} onClick={() => setActiveTab('websites')}>
+          Websites
+        </Tab>
+        <Tab active={activeTab === 'moderation'} onClick={() => setActiveTab('moderation')}>
+          Moderation Queue
+        </Tab>
+      </TabContainer>
 
-      {/* Dashboard Tab */}
-      {activeTab === 'dashboard' && stats && (
-        <>
-          <StatsGrid>
-            <StatCard>
-              <StatValue>{stats.users?.total || 0}</StatValue>
-              <StatLabel>Total Users</StatLabel>
-            </StatCard>
-            <StatCard>
-              <StatValue>{stats.websites?.total || 0}</StatValue>
-              <StatLabel>Total Websites</StatLabel>
-            </StatCard>
-            <StatCard>
-              <StatValue>{stats.websites?.published || 0}</StatValue>
-              <StatLabel>Published Sites</StatLabel>
-            </StatCard>
-            <StatCard>
-              <StatValue>{stats.moderation?.pending || 0}</StatValue>
-              <StatLabel>Pending Reports</StatLabel>
-            </StatCard>
-          </StatsGrid>
-
-          <SectionTitle>Subscriptions Breakdown</SectionTitle>
-          <StatsGrid>
-            {Object.entries(stats.subscriptions || {}).map(([plan, count]) => (
-              <StatCard key={plan}>
-                <StatValue>{count}</StatValue>
-                <StatLabel>{plan.charAt(0).toUpperCase() + plan.slice(1)}</StatLabel>
-              </StatCard>
-            ))}
-          </StatsGrid>
-        </>
-      )}
-
-      {/* Users Tab */}
+      {/* Users Section */}
       {activeTab === 'users' && (
-        <Card>
+        <Section>
+          <SectionTitle>
+            User Management
+          </SectionTitle>
+          <SearchBar>
+            <SearchInput
+              type="text"
+              placeholder="Search users by email or name..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+            />
+          </SearchBar>
           <Table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Plan</th>
-                <th>Joined</th>
-                <th>Actions</th>
+                <Th>Email</Th>
+                <Th>Name</Th>
+                <Th>Role</Th>
+                <Th>Subscription</Th>
+                <Th>Created</Th>
+                <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
-                <tr key={u.id}>
-                  <td>{u.id}</td>
-                  <td>{u.name}</td>
-                  <td>{u.email}</td>
-                  <td><Badge type={u.role}>{u.role}</Badge></td>
-                  <td><Badge type={u.subscriptionType}>{u.subscriptionType}</Badge></td>
-                  <td>{new Date(u.createdAt).toLocaleDateString()}</td>
-                  <td style={{ display: 'flex', gap: '0.5rem' }}>
-                    {u.id !== user?.id && (
-                      <>
-                        <Button
-                          variant={u.role === 'admin' ? 'outline' : 'primary'}
-                          size="small"
-                          onClick={() => handleUpdateUserRole(u.id, u.role === 'admin' ? 'user' : 'admin')}
-                        >
-                          {u.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="small"
-                          onClick={() => handleDeleteUser(u.id)}
-                        >
-                          Delete
-                        </Button>
-                      </>
-                    )}
-                  </td>
+              {paginatedUsers.map(user => (
+                <tr key={user.id}>
+                  <Td>{user.email}</Td>
+                  <Td>{user.name || '-'}</Td>
+                  <Td>
+                    <StatusBadge status={user.role}>
+                      {user.role || 'user'}
+                    </StatusBadge>
+                  </Td>
+                  <Td>
+                    <StatusBadge status={user.subscription_status || 'inactive'}>
+                      {user.subscription_status || 'free'}
+                    </StatusBadge>
+                  </Td>
+                  <Td>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</Td>
+                  <Td>
+                    <ActionButton danger onClick={() => handleDeleteUser(user.id)}>
+                      Delete
+                    </ActionButton>
+                  </Td>
                 </tr>
               ))}
-            </tbody>
-          </Table>
-        </Card>
-      )}
-
-      {/* Moderation Tab */}
-      {activeTab === 'moderation' && (
-        <Card>
-          {modQueue.length === 0 ? (
-            <p style={{ padding: '1rem', color: '#666' }}>No pending moderation reports. ✅</p>
-          ) : (
-            <Table>
-              <thead>
+              {paginatedUsers.length === 0 && (
                 <tr>
-                  <th>ID</th>
-                  <th>Content</th>
-                  <th>Type</th>
-                  <th>Reason</th>
-                  <th>Reported</th>
-                  <th>Actions</th>
+                  <Td colSpan="6" style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                    {userSearch ? 'No users match your search' : 'No users found'}
+                  </Td>
                 </tr>
-              </thead>
-              <tbody>
-                {modQueue.map(m => (
-                  <tr key={m.id}>
-                    <td>{m.id}</td>
-                    <td>#{m.contentId}</td>
-                    <td>{m.contentModel}</td>
-                    <td>{m.reason}</td>
-                    <td>{new Date(m.createdAt).toLocaleDateString()}</td>
-                    <td style={{ display: 'flex', gap: '0.5rem' }}>
-                      <Button variant="primary" size="small" onClick={() => handleReviewMod(m.id, 'approved')}>
-                        Approve
-                      </Button>
-                      <Button variant="danger" size="small" onClick={() => handleReviewMod(m.id, 'rejected')}>
-                        Reject
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
+              )}
+            </tbody>
+          </Table>
+          {totalUserPages > 1 && (
+            <Pagination>
+              <PageButton 
+                onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                disabled={userPage === 1}
+              >
+                Previous
+              </PageButton>
+              <PageInfo>
+                Page {userPage} of {totalUserPages}
+              </PageInfo>
+              <PageButton 
+                onClick={() => setUserPage(p => Math.min(totalUserPages, p + 1))}
+                disabled={userPage === totalUserPages}
+              >
+                Next
+              </PageButton>
+            </Pagination>
           )}
-        </Card>
+        </Section>
       )}
 
-      {/* Audit Logs Tab */}
-      {activeTab === 'audit-logs' && (
-        <Card>
+      {/* Websites Section */}
+      {activeTab === 'websites' && (
+        <Section>
+          <SectionTitle>
+            Website Management
+          </SectionTitle>
+          <SearchBar>
+            <SearchInput
+              type="text"
+              placeholder="Search websites by name or subdomain..."
+              value={websiteSearch}
+              onChange={(e) => setWebsiteSearch(e.target.value)}
+            />
+          </SearchBar>
           <Table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Action</th>
-                <th>Resource</th>
-                <th>Time</th>
+                <Th>Name</Th>
+                <Th>Subdomain</Th>
+                <Th>Owner</Th>
+                <Th>Status</Th>
+                <Th>Created</Th>
+                <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map(log => (
-                <tr key={log.id}>
-                  <td>{log.id}</td>
-                  <td>#{log.userId}</td>
-                  <td><Badge type={log.action === 'DELETE' ? 'rejected' : 'active'}>{log.action}</Badge></td>
-                  <td>{log.resource}{log.resourceId ? ` #${log.resourceId}` : ''}</td>
-                  <td>{new Date(log.createdAt).toLocaleString()}</td>
+              {paginatedWebsites.map(website => (
+                <tr key={website.id}>
+                  <Td>{website.name}</Td>
+                  <Td>{website.subdomain}.websitebuilder.com</Td>
+                  <Td>{website.owner_email || website.user_id}</Td>
+                  <Td>
+                    <StatusBadge status={website.status}>
+                      {website.status || 'draft'}
+                    </StatusBadge>
+                  </Td>
+                  <Td>{website.created_at ? new Date(website.created_at).toLocaleDateString() : '-'}</Td>
+                  <Td>
+                    <ActionButton onClick={() => window.open(`http://${website.subdomain}.localhost:5000`, '_blank')}>
+                      View
+                    </ActionButton>
+                    <ActionButton danger onClick={() => handleDeleteWebsite(website.id)}>
+                      Delete
+                    </ActionButton>
+                  </Td>
                 </tr>
               ))}
+              {paginatedWebsites.length === 0 && (
+                <tr>
+                  <Td colSpan="6" style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                    {websiteSearch ? 'No websites match your search' : 'No websites found'}
+                  </Td>
+                </tr>
+              )}
             </tbody>
           </Table>
-        </Card>
+          {totalWebsitePages > 1 && (
+            <Pagination>
+              <PageButton 
+                onClick={() => setWebsitePage(p => Math.max(1, p - 1))}
+                disabled={websitePage === 1}
+              >
+                Previous
+              </PageButton>
+              <PageInfo>
+                Page {websitePage} of {totalWebsitePages}
+              </PageInfo>
+              <PageButton 
+                onClick={() => setWebsitePage(p => Math.min(totalWebsitePages, p + 1))}
+                disabled={websitePage === totalWebsitePages}
+              >
+                Next
+              </PageButton>
+            </Pagination>
+          )}
+        </Section>
       )}
-    </AdminContainer>
+
+      {/* Moderation Section */}
+      {activeTab === 'moderation' && (
+        <Section>
+          <SectionTitle>
+            Moderation Queue
+          </SectionTitle>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Type</Th>
+                <Th>Content</Th>
+                <Th>Reported By</Th>
+                <Th>Date</Th>
+                <Th>Actions</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedModeration.map(item => (
+                <tr key={item.id}>
+                  <Td>{item.type || 'Content'}</Td>
+                  <Td>{item.content_preview || item.reason || '-'}</Td>
+                  <Td>{item.reported_by || 'System'}</Td>
+                  <Td>{item.created_at ? new Date(item.created_at).toLocaleDateString() : '-'}</Td>
+                  <Td>
+                    <ActionButton onClick={() => handleModeration(item.id, 'approve')}>
+                      Approve
+                    </ActionButton>
+                    <ActionButton danger onClick={() => handleModeration(item.id, 'reject')}>
+                      Reject
+                    </ActionButton>
+                  </Td>
+                </tr>
+              ))}
+              {paginatedModeration.length === 0 && (
+                <tr>
+                  <Td colSpan="5" style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                    No items pending moderation
+                  </Td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+          {totalModerationPages > 1 && (
+            <Pagination>
+              <PageButton 
+                onClick={() => setModerationPage(p => Math.max(1, p - 1))}
+                disabled={moderationPage === 1}
+              >
+                Previous
+              </PageButton>
+              <PageInfo>
+                Page {moderationPage} of {totalModerationPages}
+              </PageInfo>
+              <PageButton 
+                onClick={() => setModerationPage(p => Math.min(totalModerationPages, p + 1))}
+                disabled={moderationPage === totalModerationPages}
+              >
+                Next
+              </PageButton>
+            </Pagination>
+          )}
+        </Section>
+      )}
+    </Container>
   );
-};
+}
 
 export default Admin;

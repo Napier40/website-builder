@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from functools import wraps
 from flask import jsonify, request
+import bleach
 
 
 # ─── Database guard decorator ─────────────────────────────────────────────────
@@ -145,3 +146,104 @@ def get_client_ip() -> str:
     if request.environ.get('HTTP_X_FORWARDED_FOR'):
         return request.environ['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
     return request.remote_addr or 'unknown'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Input Sanitization helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Allowed HTML tags for rich text content
+ALLOWED_TAGS = [
+    'a', 'abbr', 'article', 'b', 'blockquote', 'br', 'caption', 'code',
+    'col', 'colgroup', 'dd', 'div', 'dl', 'dt', 'em', 'figcaption',
+    'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img',
+    'li', 'ol', 'p', 'pre', 'q', 's', 'section', 'small', 'span',
+    'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th',
+    'thead', 'tr', 'u', 'ul'
+]
+
+# Allowed HTML attributes
+ALLOWED_ATTRIBUTES = {
+    '*': ['class', 'id', 'style'],
+    'a': ['href', 'title', 'target', 'rel'],
+    'img': ['src', 'alt', 'title', 'width', 'height'],
+    'table': ['border', 'cellpadding', 'cellspacing'],
+    'td': ['colspan', 'rowspan'],
+    'th': ['colspan', 'rowspan'],
+}
+
+
+def sanitize_html(content: str) -> str:
+    """
+    Sanitize HTML content by allowing only safe tags and attributes.
+    Prevents XSS attacks while preserving formatting.
+    """
+    if not content:
+        return ''
+    return bleach.clean(
+        content,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        strip=True
+    )
+
+
+def strip_tags(content: str) -> str:
+    """
+    Remove all HTML tags from content.
+    Use for plain text fields that should not contain any HTML.
+    """
+    if not content:
+        return ''
+    return bleach.clean(content, tags=[], attributes={}, strip=True)
+
+
+def sanitize_input(value: str, max_length: int = None) -> str:
+    """
+    Sanitize a string input:
+    - Strip HTML tags
+    - Trim whitespace
+    - Optionally truncate to max_length
+    
+    Use for names, titles, and other plain text fields.
+    """
+    if not value:
+        return ''
+    
+    # Remove any HTML tags
+    cleaned = strip_tags(str(value))
+    
+    # Trim whitespace
+    cleaned = cleaned.strip()
+    
+    # Truncate if max_length specified
+    if max_length and len(cleaned) > max_length:
+        cleaned = cleaned[:max_length]
+    
+    return cleaned
+
+
+def sanitize_url(url: str) -> str:
+    """
+    Sanitize a URL to ensure it uses a safe protocol.
+    Only allows http, https, mailto, and tel protocols.
+    """
+    if not url:
+        return ''
+    
+    url = url.strip()
+    
+    # List of allowed protocols
+    allowed_protocols = ['http://', 'https://', 'mailto:', 'tel:', '/']
+    
+    # Check if URL starts with an allowed protocol
+    for protocol in allowed_protocols:
+        if url.lower().startswith(protocol):
+            return url
+    
+    # If no protocol, assume https
+    if not url.startswith('//'):
+        return 'https://' + url
+    
+    # Block javascript: and other dangerous protocols
+    return ''

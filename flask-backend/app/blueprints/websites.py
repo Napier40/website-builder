@@ -60,12 +60,17 @@ def create_website():
         return error_response(
             'Invalid subdomain. Use 3-63 lowercase letters, digits, or hyphens.', 400)
 
+    # Sanitize input
+    name = sanitize_input(data['name'], max_length=200)
+    subdomain = sanitize_input(data['subdomain'], max_length=63).lower()
+    template = sanitize_input(data.get('template', 'blank'), max_length=100)
+    
     try:
         website = Website.create(
-            name=data['name'],
-            subdomain=data['subdomain'],
+            name=name,
+            subdomain=subdomain,
             user_id=g.current_user.id,
-            template=data.get('template', 'blank'),
+            template=template,
         )
     except ValueError as e:
         return error_response(str(e), 409)

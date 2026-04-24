@@ -6,6 +6,8 @@ import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 from config import get_config
@@ -121,6 +123,14 @@ def _register_error_handlers(app):
     @app.errorhandler(400)
     def bad_request(e):
         return jsonify({'success': False, 'message': 'Bad request', 'error': str(e)}), 400
+
+    @app.errorhandler(429)
+    def rate_limit_exceeded(e):
+        return jsonify({
+            'success': False,
+            'message': 'Rate limit exceeded. Please slow down.',
+            'error': 'too_many_requests'
+        }), 429
 
     @app.errorhandler(401)
     def unauthorized(e):
