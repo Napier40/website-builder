@@ -14,7 +14,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Websites from './pages/Websites';
-import WebsiteBuilder from './pages/WebsiteBuilder';
+import WebsiteBuilder from './builder/BuilderShell';
 import Subscriptions from './pages/Subscriptions';
 import Checkout from './pages/Checkout';
 import Account from './pages/Account';

@@ -22,9 +22,13 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(
         seconds=int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES', 2592000))  # 30 days
     )
-    JWT_TOKEN_LOCATION = ['headers']
+    JWT_TOKEN_LOCATION = ['headers', 'query_string']
     JWT_HEADER_NAME    = 'Authorization'
     JWT_HEADER_TYPE    = 'Bearer'
+    # Query-string token lookup — iframes can't set Authorization headers,
+    # so the editor's live preview passes the JWT as ?access_token=... .
+    JWT_QUERY_STRING_NAME      = 'access_token'
+    JWT_QUERY_STRING_VALUE_PREFIX = ''
 
     # ── Database (SQLite) ──────────────────────────────────────────────────────
     # Default: website_builder.db in the flask-backend directory
@@ -41,7 +45,16 @@ class Config:
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     FRONTEND_URL  = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
-    CORS_ORIGINS  = [os.environ.get('FRONTEND_URL', 'http://localhost:3000')]
+    # CORS origins — comma-separated list. Defaults to FRONTEND_URL.
+    # Set CORS_ORIGINS="https://foo.com,https://bar.com" to allow multiple.
+    CORS_ORIGINS  = [
+        o.strip()
+        for o in os.environ.get(
+            'CORS_ORIGINS',
+            os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+        ).split(',')
+        if o.strip()
+    ]
 
     # ── Misc ──────────────────────────────────────────────────────────────────
     DEBUG               = False

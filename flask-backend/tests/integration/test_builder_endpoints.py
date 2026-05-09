@@ -124,6 +124,15 @@ class TestPreviewEndpoint:
                           headers={'Authorization': f'Bearer {user_token}'})
         assert resp.status_code == 403
 
+    def test_preview_accepts_query_string_token(self, client, registered_user,
+                                                user_token, flask_app):
+        """Iframes can't set headers — query-string token must work."""
+        wid = _make_website(flask_app, registered_user['id'], tree=self._tree(),
+                            subdomain='qs-token-site')
+        resp = client.get(f'/api/websites/{wid}/preview?access_token={user_token}')
+        assert resp.status_code == 200
+        assert resp.mimetype == 'text/html'
+
     def test_preview_without_tree_uses_legacy_content(self, client, registered_user,
                                                      user_token, flask_app):
         """Legacy pages (no JSON tree) still render via raw-HTML fallback."""
