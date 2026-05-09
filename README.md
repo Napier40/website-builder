@@ -67,7 +67,30 @@ git clone https://github.com/Napier40/website-builder.git
 cd website-builder
 ```
 
-### 2. Start the Flask Backend
+### 2. ⚡ One-command startup (recommended)
+
+Run **both** the backend and the frontend with a single command:
+
+```bash
+# macOS / Linux
+./start.sh
+
+# Windows
+start.bat
+```
+
+When you see `🚀  READY  🚀`, open **http://localhost:3000** in your browser.
+
+> ⚠️ **Important:** The app's user interface lives at **http://localhost:3000** (React).
+> The API backend at **http://localhost:5000** returns JSON — that's normal, not an error.
+
+---
+
+### Manual startup (alternative)
+
+If you prefer to start each service yourself:
+
+#### Start the Flask Backend
 ```bash
 cd flask-backend
 
@@ -76,7 +99,7 @@ python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 
 # Configure environment
 cp .env.example .env
@@ -89,13 +112,41 @@ API runs at: **http://localhost:5000**
 
 The SQLite database file (`website_builder.db`) is created automatically in `flask-backend/` on first run. Subscription plans and default templates are seeded automatically.
 
-### 3. Start the React Frontend
+#### Start the React Frontend (in a second terminal)
 ```bash
 cd frontend
 npm install
 npm start
 ```
-App runs at: **http://localhost:3000**
+👉 **App runs at: http://localhost:3000** ← open this in your browser
+
+---
+
+## ⚠️ Troubleshooting
+
+### "I see raw JSON like `{\"success\": true, \"message\": \"Website Builder API\"...}`"
+
+**This is not an error** — you've hit the backend API directly. The backend only serves JSON; the user interface is served by the React frontend on a different port.
+
+**Fix:** Open **http://localhost:3000** instead of http://localhost:5000.
+
+Make sure the React frontend is running:
+```bash
+cd frontend && npm start
+```
+
+### "Connection refused" on http://localhost:3000
+
+The React frontend isn't running. Start it with `npm start` from the `frontend/` directory, or use `./start.sh` to start everything at once.
+
+### "Connection refused" on http://localhost:5000
+
+The Flask backend isn't running. Start it with `python run.py` from `flask-backend/` (with venv activated), or use `./start.sh`.
+
+### Admin login
+Default admin credentials (change in production):
+- Email: `admin@websitebuilder.com`
+- Password: `Admin@1234`
 
 ---
 
