@@ -1,7 +1,19 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 export const AuthContext = createContext();
+
+/**
+ * Custom hook for consuming the auth context.
+ * Usage:   const { user, login, logout, isAuthenticated } = useAuth();
+ */
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth must be used within an <AuthProvider>');
+  }
+  return ctx;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
