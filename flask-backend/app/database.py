@@ -33,6 +33,10 @@ def init_db(app):
         db.create_all()
         logger.info("✅ Database tables created (SQLite)")
 
+        # Lightweight SQLite schema evolution — add newly introduced columns
+        # to pre-existing databases without requiring a full migration framework.
+        _evolve_sqlite_schema()
+
         # Seed default data
         _seed_subscriptions()
         _seed_templates()
@@ -44,6 +48,89 @@ def init_db(app):
         # Extract readable path from URI
         path = uri.replace('sqlite:///', '')
         logger.info(f"✅ SQLite database ready at: {path}")
+
+
+def _evolve_sqlite_schema():
+    """
+    Lightweight additive-only schema evolution for SQLite.
+
+    `db.create_all()` only creates missing tables — it will NOT add newly
+    declared columns to tables that already exist. To avoid forcing users
+    to delete their dev database every time we add a column, we inspect
+    the live schema and `ALTER TABLE ... ADD COLUMN` for any columns
+    declared on the model but missing in the database.
+
+    This is safe because:
+      * SQLite supports `ADD COLUMN` for nullable / default-valued columns
+      * We only ADD columns — we never drop or change existing ones
+      * Each addition is wrapped so one failure doesn't abort the others
+    """
+    from sqlalchemy import inspect, text
+
+    engine = db.engine
+    if engine.dialect.name != 'sqlite':
+        # Proper databases should use Flask-Migrate / Alembic.
+        return
+
+    inspector = inspect(engine)
+
+    # Models whose tables may gain new columns between releases.
+    from app.models.website import Website, Page  # noqa: F401
+
+    targets = [Website, Page]
+
+    added = 0
+    with engine.begin() as conn:
+        for model in targets:
+            table_name = model.__tablename__
+            if not inspector.has_table(table_name):
+                continue
+            existing_cols = {c['name'] for c in inspector.get_columns(table_name)}
+            for column in model.__table__.columns:
+                if column.name in existing_cols:
+                    continue
+
+                # Build a SQLite-compatible ADD COLUMN statement.
+                col_type = column.type.compile(dialect=engine.dialect)
+                parts = [f'"{column.name}"', col_type]
+
+                if not column.nullable:
+                    parts.append('NOT NULL')
+
+                default = column.default
+                if default is not None and getattr(default, 'is_scalar', False):
+                    val = default.arg
+                    if isinstance(val, bool):
+                        parts.append(f"DEFAULT {1 if val else 0}")
+                    elif isinstance(val, (int, float)):
+                        parts.append(f"DEFAULT {val}")
+                    elif isinstance(val, str):
+                        escaped = val.replace("'", "''")
+                        parts.append(f"DEFAULT '{escaped}'")
+                elif not column.nullable:
+                    # SQLite requires a DEFAULT for NOT NULL columns added
+                    # to a non-empty table. Fall back to a sensible value.
+                    type_name = col_type.upper()
+                    if 'INT' in type_name:
+                        parts.append('DEFAULT 0')
+                    elif any(t in type_name for t in ('CHAR', 'TEXT', 'CLOB')):
+                        parts.append("DEFAULT ''")
+                    elif 'BOOL' in type_name:
+                        parts.append('DEFAULT 0')
+
+                sql = f'ALTER TABLE "{table_name}" ADD COLUMN ' + ' '.join(parts)
+                try:
+                    conn.execute(text(sql))
+                    added += 1
+                    logger.info(f"  ↳ evolved {table_name}: added column '{column.name}'")
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        f"  ↳ could not add column '{column.name}' to "
+                        f"'{table_name}': {exc}"
+                    )
+
+    if added:
+        logger.info(f"✅ Schema evolution: added {added} column(s)")
 
 
 def _seed_subscriptions():

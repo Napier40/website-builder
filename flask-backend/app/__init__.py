@@ -259,6 +259,8 @@ def _register_blueprints(app):
     from app.blueprints.admin         import admin_bp
     from app.blueprints.plugins       import plugins_bp
     from app.blueprints.templates     import templates_bp
+    from app.blueprints.catalogue     import catalogue_bp
+    from app.blueprints.render        import preview_bp, public_bp
 
     app.register_blueprint(auth_bp,          url_prefix='/api/auth')
     app.register_blueprint(users_bp,         url_prefix='/api/users')
@@ -268,6 +270,11 @@ def _register_blueprints(app):
     app.register_blueprint(admin_bp,         url_prefix='/api/admin')
     app.register_blueprint(plugins_bp,       url_prefix='/api/plugins')
     app.register_blueprint(templates_bp,     url_prefix='/api/templates')
+    app.register_blueprint(catalogue_bp,     url_prefix='/api/catalogue')
+    # Editor preview shares the /api/websites namespace so URLs are predictable.
+    app.register_blueprint(preview_bp,       url_prefix='/api/websites')
+    # Public published-site serving lives at the root ("/s/<subdomain>").
+    app.register_blueprint(public_bp)
 
     logger.info("✅ All blueprints registered")
 

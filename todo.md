@@ -7,15 +7,18 @@ starter-site library. Keep existing auth / subscriptions / Stripe intact.
 
 ## Phase 1 — Backend foundation ✅ (current)
 - [x] Bootswatch theme catalogue (`bootstrap_themes.py`, 27 themes, CDN URLs)
-- [x] Bootstrap 5.3 component schema (`component_catalogue.py`, 56 components)
+- [x] Bootstrap 5.3 component schema (`component_catalogue.py`, 69 components)
 - [x] Python → Bootstrap HTML renderer (`bootstrap_renderer.py`)
 - [x] Smoke tests: every type renders, every theme resolves, HTML parses
 - [x] Demo pages rendered for default + Bootswatch cosmo + darkly
-- [ ] Add `theme` + `tree_json` columns to the `Website` model
-- [ ] Public `GET /s/<subdomain>` endpoint → renders a published site
-- [ ] Editor-preview `GET /api/websites/<id>/preview` endpoint
-- [ ] `GET /api/catalogue` → catalogue + themes (for the frontend palette)
-- [ ] Flask-Migrate: migration for the new columns
+- [x] Add `theme` + `tree_json` columns to the `Website`/`Page` models
+- [x] SQLite schema-evolution helper (additive `ALTER TABLE ADD COLUMN`)
+- [x] Public `GET /s/<subdomain>[/<slug>]` endpoint — published sites
+- [x] Editor-preview `GET /api/websites/<id>/preview[/<slug>]` endpoint
+- [x] `GET /api/catalogue` → catalogue + themes + CDN URLs (for frontend palette)
+- [x] `PUT /api/websites/<id>` accepts & validates `theme`
+- [x] Integration tests for every new endpoint (16 new, 99 total passing)
+- [x] Proper `requirements.txt` for the Flask backend
 
 ## Phase 2 — Component catalogue ✅ already done in Phase 1
 
