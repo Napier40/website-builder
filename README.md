@@ -67,28 +67,42 @@ git clone https://github.com/Napier40/website-builder.git
 cd website-builder
 ```
 
-### 2. ⚡ One-command startup (recommended)
+### 2. ⚡ One-command startup
 
-Run **both** the backend and the frontend with a single command:
+This project is designed so **one command launches both services** (backend + frontend) together. Pick whichever flavour you prefer — they all do exactly the same thing:
 
-```bash
-# macOS / Linux
-./start.sh
+| Method | Command | Works on |
+|--------|---------|----------|
+| **npm** (recommended) | `npm run install:all && npm start` | Any OS with Node |
+| **Shell script** | `./start.sh` | macOS / Linux |
+| **Batch file** | `start.bat` | Windows |
+| **Make** | `make install && make start` | macOS / Linux (with make) |
 
-# Windows
-start.bat
-```
+All four methods:
+- ✅ Auto-create the Python virtualenv on first run
+- ✅ Auto-install backend (pip) and frontend (npm) dependencies
+- ✅ Detect port conflicts on 5000/3000 and offer to free them
+- ✅ Stream both services' logs with colour-coded prefixes (`[BACKEND]` in cyan, `[FRONTEND]` in magenta)
+- ✅ Gracefully shut **both** services down with `Ctrl+C`
+- ✅ If either service crashes, the other is stopped automatically
 
-When you see `🚀  READY  🚀`, open **http://localhost:3000** in your browser.
+When you see the `🚀  READY  🚀` banner, open **http://localhost:3000** in your browser.
 
-> ⚠️ **Important:** The app's user interface lives at **http://localhost:3000** (React).
-> The API backend at **http://localhost:5000** returns JSON — that's normal, not an error.
+> ⚠️ **Important:** The user interface lives at **http://localhost:3000** (React).
+> The API backend at **http://localhost:5000** is the data layer — visiting it in a browser now shows a friendly landing page with a link to the app.
 
 ---
 
-### Manual startup (alternative)
+### Stopping the services
 
-If you prefer to start each service yourself:
+- From the terminal running `npm start` / `start.sh` → press **Ctrl+C**
+- From any terminal → `npm run stop` (or `make stop`) — kills anything on ports 5000/3000
+
+---
+
+### Manual startup (alternative — two terminals)
+
+If you prefer to run each service in its own terminal:
 
 #### Start the Flask Backend
 ```bash

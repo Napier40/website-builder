@@ -1,0 +1,32 @@
+{
+  "name": "website-builder",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Subscription-based website builder — Flask backend + React frontend, launched together.",
+  "scripts": {
+    "start": "concurrently --names \"BACKEND,FRONTEND\" --prefix-colors \"cyan.bold,magenta.bold\" --kill-others-on-fail \"npm:start:backend\" \"npm:start:frontend\"",
+    "dev": "npm start",
+    "start:backend": "node scripts/start-backend.js",
+    "start:frontend": "cd frontend && cross-env BROWSER=none npm start",
+    "install:all": "npm install && npm run install:backend && npm run install:frontend",
+    "install:backend": "node scripts/install-backend.js",
+    "install:frontend": "cd frontend && npm install",
+    "postinstall": "node scripts/post-install.js",
+    "clean": "rimraf flask-backend/venv flask-backend/website_builder.db frontend/node_modules node_modules",
+    "stop": "node scripts/stop.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "rimraf": "^6.0.1"
+  },
+  "engines": {
+    "node": ">=16",
+    "npm": ">=8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Napier40/website-builder.git"
+  },
+  "license": "MIT"
+}
