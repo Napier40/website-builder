@@ -168,4 +168,62 @@ assert "offcanvas-start" in offcanvas
 
 print("[ok] Spot-checks on accordion/navbar/breadcrumb/button/carousel/tabs/modal/progress/offcanvas all passed.")
 
+# 9. New components added for Bootstrap 5.3 full coverage ---------------
+table_html = r.render_node(new_node("table"))
+assert "<table" in table_html and "<thead>" in table_html and "<tbody>" in table_html
+assert "table-responsive" in table_html  # default wraps responsively
+assert table_html.count("<tr>") == 4  # 1 header + 3 data rows
+
+collapse_html = r.render_node(new_node("collapse"))
+assert 'data-bs-toggle="collapse"' in collapse_html and 'class="collapse' in collapse_html
+
+tooltip_html = r.render_node(new_node("tooltip"))
+assert 'data-bs-toggle="tooltip"' in tooltip_html
+assert 'data-bs-placement="top"' in tooltip_html
+
+popover_html = r.render_node(new_node("popover"))
+assert 'data-bs-toggle="popover"' in popover_html
+assert 'data-bs-content=' in popover_html
+
+scrollspy_html = r.render_node(new_node("scrollspy"))
+assert 'data-bs-spy="scroll"' in scrollspy_html
+assert scrollspy_html.count("<h4") == 3
+
+nav_html = r.render_node(new_node("nav"))
+assert '<ul class="nav' in nav_html and "nav-link active" in nav_html and "disabled" in nav_html
+
+back_html = r.render_node(new_node("back-to-top"))
+assert 'position-fixed' in back_html and 'bi-arrow-up' in back_html
+
+header_html = r.render_node(new_node("header"))
+assert "<header" in header_html and "display-5" in header_html
+
+clearfix_html = r.render_node(new_node("clearfix"))
+assert 'class="clearfix' in clearfix_html
+
+stretched_html = r.render_node(new_node("stretched-link"))
+assert "stretched-link" in stretched_html
+
+truncate_html = r.render_node(new_node("text-truncate"))
+assert "text-truncate" in truncate_html and "max-width:250px" in truncate_html
+
+iconlink_html = r.render_node(new_node("icon-link"))
+assert "icon-link" in iconlink_html and "bi-box-arrow-up-right" in iconlink_html
+
+cardgroup_html = r.render_node({
+    "type": "card-group", "props": {},
+    "children": [new_node("card"), new_node("card"), new_node("card")]
+})
+assert "card-group" in cardgroup_html and cardgroup_html.count("class=\"card") >= 3
+
+print("[ok] All 13 newly-added components render correctly.")
+
+# 10. Generated pages include auto-init script for tooltips/popovers ----
+full = render_page(
+    {"type": "page", "props": {}, "children": [new_node("tooltip"), new_node("popover")]}
+)
+assert "new bootstrap.Tooltip" in full
+assert "new bootstrap.Popover" in full
+print("[ok] render_page injects auto-init JS for tooltips & popovers.")
+
 print("\nALL RENDERER SMOKE TESTS PASSED")

@@ -182,6 +182,21 @@ class Renderer:
             "spacer":           self._r_spacer,
             "ratio":            self._r_ratio,
             "visually-hidden":  self._r_visually_hidden,
+            "clearfix":         self._r_clearfix,
+            "stretched-link":   self._r_stretched_link,
+            "text-truncate":    self._r_text_truncate,
+            "icon-link":        self._r_icon_link,
+            # Content (extras)
+            "table":            self._r_table,
+            # Components (extras)
+            "collapse":         self._r_collapse,
+            "tooltip":          self._r_tooltip,
+            "popover":          self._r_popover,
+            "scrollspy":        self._r_scrollspy,
+            "nav":              self._r_nav,
+            "card-group":       self._r_card_group,
+            "back-to-top":      self._r_back_to_top,
+            "header":           self._r_header,
         }
 
     # -- public API -------------------------------------------------------
@@ -1115,6 +1130,238 @@ class Renderer:
         p = self._p(n)
         return f'<span class="{_classes("visually-hidden", p.get("classes"))}">{_e(p.get("text", ""))}</span>'
 
+    def _r_clearfix(self, n):
+        p = self._p(n)
+        return f'<div class="{_classes("clearfix", p.get("classes"))}"></div>'
+
+    def _r_stretched_link(self, n):
+        p = self._p(n)
+        return (
+            f'<a href="{_e(p.get("href", "#"))}" '
+            f'class="{_classes("stretched-link", p.get("classes"))}">'
+            f'{_e(p.get("text", "Go somewhere"))}</a>'
+        )
+
+    def _r_text_truncate(self, n):
+        p = self._p(n)
+        width = p.get("width", "250px")
+        return (
+            f'<div class="{_classes("text-truncate", p.get("classes"))}" '
+            f'style="max-width:{_e(width)};">{_e(p.get("text", ""))}</div>'
+        )
+
+    def _r_icon_link(self, n):
+        p = self._p(n)
+        icon_name = p.get("icon") or "box-arrow-up-right"
+        if not str(icon_name).startswith("bi-"):
+            icon_name = f"bi-{icon_name}"
+        hover = " icon-link-hover" if _bool(p.get("hover", True)) else ""
+        return (
+            f'<a href="{_e(p.get("href", "#"))}" '
+            f'class="{_classes("icon-link" + hover, p.get("classes"))}">'
+            f'{_e(p.get("text", "Icon link"))}'
+            f'<i class="bi {icon_name}" aria-hidden="true"></i></a>'
+        )
+
+    # =====================================================================
+    # CONTENT (extras)
+    # =====================================================================
+    def _r_table(self, n):
+        p = self._p(n)
+        headers = _split_lines(p.get("headers"))
+        rows_lines = _split_lines(p.get("rows"))
+
+        table_classes = ["table"]
+        if _bool(p.get("striped")):
+            table_classes.append("table-striped")
+        if _bool(p.get("hover", True)):
+            table_classes.append("table-hover")
+        if _bool(p.get("bordered")):
+            table_classes.append("table-bordered")
+        if _bool(p.get("borderless")):
+            table_classes.append("table-borderless")
+        if _bool(p.get("small")):
+            table_classes.append("table-sm")
+        if p.get("variant"):
+            table_classes.append(p["variant"])
+        table_classes.append(p.get("classes", ""))
+
+        caption_html = (
+            f"<caption>{_e(p['caption'])}</caption>" if p.get("caption") else ""
+        )
+
+        thead_html = ""
+        if headers:
+            ths = "".join(f"<th scope=\"col\">{_e(h)}</th>" for h in headers)
+            thead_html = f"<thead><tr>{ths}</tr></thead>"
+
+        body_rows: List[str] = []
+        for line in rows_lines:
+            cells = [c.strip() for c in line.split("::")]
+            tds = "".join(f"<td>{_e(c)}</td>" for c in cells)
+            body_rows.append(f"<tr>{tds}</tr>")
+        tbody_html = f"<tbody>{''.join(body_rows)}</tbody>"
+
+        table_html = (
+            f'<table class="{_classes(*table_classes)}">'
+            f"{caption_html}{thead_html}{tbody_html}</table>"
+        )
+        if _bool(p.get("responsive", True)):
+            return f'<div class="table-responsive">{table_html}</div>'
+        return table_html
+
+    # =====================================================================
+    # COMPONENTS (extras)
+    # =====================================================================
+    def _r_collapse(self, n):
+        p = self._p(n)
+        cid = self.ids.make("collapse")
+        variant = p.get("variant", "primary")
+        is_open = _bool(p.get("openByDefault"))
+        horizontal = _bool(p.get("horizontal"))
+        collapse_cls = "collapse" + (" collapse-horizontal" if horizontal else "")
+        if is_open:
+            collapse_cls += " show"
+        panel_style = ' style="min-height: 120px;"' if horizontal else ""
+        inner_width = ' style="width: 300px;"' if horizontal else ""
+        return (
+            f'<p><button class="btn btn-{_e(variant)} {_classes(p.get("classes"))}" '
+            f'type="button" data-bs-toggle="collapse" data-bs-target="#{cid}" '
+            f'aria-expanded="{"true" if is_open else "false"}" aria-controls="{cid}">'
+            f'{_e(p.get("buttonText", "Toggle content"))}</button></p>'
+            f'<div{panel_style}>'
+            f'<div class="{collapse_cls}" id="{cid}"{inner_width}>'
+            f'<div class="card card-body">{_e(p.get("body", ""))}</div></div></div>'
+        )
+
+    def _r_tooltip(self, n):
+        p = self._p(n)
+        variant = p.get("variant", "secondary")
+        return (
+            f'<button type="button" class="btn btn-{_e(variant)} {_classes(p.get("classes"))}" '
+            f'data-bs-toggle="tooltip" data-bs-placement="{_e(p.get("placement", "top"))}" '
+            f'data-bs-title="{_e(p.get("tooltip", ""))}">'
+            f'{_e(p.get("text", "Hover me"))}</button>'
+        )
+
+    def _r_popover(self, n):
+        p = self._p(n)
+        variant = p.get("variant", "secondary")
+        return (
+            f'<button type="button" class="btn btn-{_e(variant)} {_classes(p.get("classes"))}" '
+            f'data-bs-toggle="popover" '
+            f'data-bs-placement="{_e(p.get("placement", "right"))}" '
+            f'data-bs-trigger="{_e(p.get("trigger", "click"))}" '
+            f'data-bs-title="{_e(p.get("title", ""))}" '
+            f'data-bs-content="{_e(p.get("body", ""))}">'
+            f'{_e(p.get("text", "Click me"))}</button>'
+        )
+
+    def _r_scrollspy(self, n):
+        p = self._p(n)
+        sid = self.ids.make("scrollspy")
+        items = _split_lines(p.get("items"))
+        nav_links: List[str] = []
+        sections: List[str] = []
+        for i, line in enumerate(items):
+            parts = _split_parts(line, 3)
+            nav_label, heading, body = parts[0], parts[1] or parts[0], parts[2]
+            anchor = f"{sid}-s{i}"
+            active = " active" if i == 0 else ""
+            nav_links.append(
+                f'<a class="nav-link{active}" href="#{anchor}">{_e(nav_label)}</a>'
+            )
+            sections.append(
+                f'<h4 id="{anchor}">{_e(heading)}</h4>'
+                f"<p>{_e(body)}</p>"
+            )
+        height = p.get("height", "300px")
+        return (
+            f'<div class="{_classes("row", p.get("classes"))}">'
+            f'<div class="col-4"><nav id="{sid}-nav" class="nav nav-pills flex-column">'
+            f'{"".join(nav_links)}</nav></div>'
+            f'<div class="col-8"><div data-bs-spy="scroll" data-bs-target="#{sid}-nav" '
+            f'data-bs-smooth-scroll="true" class="scrollspy-example" tabindex="0" '
+            f'style="max-height:{_e(height)}; overflow:auto; position:relative;">'
+            f'{"".join(sections)}</div></div></div>'
+        )
+
+    def _r_nav(self, n):
+        p = self._p(n)
+        items = _split_lines(p.get("items"))
+        style = p.get("style", "")
+        align = p.get("align", "")
+        vertical = "flex-column" if _bool(p.get("vertical")) else ""
+        fill = "nav-fill" if _bool(p.get("fill")) else ""
+        lis: List[str] = []
+        for line in items:
+            parts = _split_parts(line, 3)
+            label, href, state = parts[0], parts[1] or "#", (parts[2] or "").lower()
+            link_parts = ["nav-link"]
+            aria = ""
+            if state == "active":
+                link_parts.append("active")
+                aria = ' aria-current="page"'
+            elif state == "disabled":
+                link_parts.append("disabled")
+                aria = ' aria-disabled="true" tabindex="-1"'
+            lis.append(
+                f'<li class="nav-item"><a class="{_classes(*link_parts)}"'
+                f'{aria} href="{_e(href)}">{_e(label)}</a></li>'
+            )
+        cls = _classes("nav", style, align, vertical, fill, p.get("classes"))
+        return f'<ul class="{cls}">{"".join(lis)}</ul>'
+
+    def _r_card_group(self, n):
+        p = self._p(n)
+        layout = p.get("layout", "card-group")
+        if layout == "row-cards":
+            return (
+                f'<div class="{_classes("row", "row-cols-1", "row-cols-md-3", "g-4", p.get("classes"))}">'
+                + "".join(
+                    f'<div class="col">{self.render_node(c)}</div>'
+                    for c in (n.get("children") or [])
+                )
+                + "</div>"
+            )
+        return (
+            f'<div class="{_classes("card-group", p.get("classes"))}">'
+            f"{self.render_children(n)}</div>"
+        )
+
+    def _r_back_to_top(self, n):
+        p = self._p(n)
+        icon_name = p.get("icon") or "arrow-up"
+        if not str(icon_name).startswith("bi-"):
+            icon_name = f"bi-{icon_name}"
+        variant = p.get("variant", "primary")
+        bid = self.ids.make("back-to-top")
+        # Inline JS: show button after scrolling 300px, smooth-scroll on click.
+        script = (
+            f"<script>(function(){{var b=document.getElementById('{bid}');"
+            f"if(!b)return;var t=function(){{b.style.display=window.scrollY>300?'inline-flex':'none';}};"
+            f"t();window.addEventListener('scroll',t);"
+            f"b.addEventListener('click',function(e){{e.preventDefault();"
+            f"window.scrollTo({{top:0,behavior:'smooth'}});}});}})();</script>"
+        )
+        return (
+            f'<a href="#" id="{bid}" class="{_classes(f"btn btn-{variant}", "position-fixed", p.get("classes"))}" '
+            f'style="bottom:1.5rem;right:1.5rem;display:none;z-index:1030;border-radius:50%;padding:0.6rem 0.75rem;" '
+            f'aria-label="{_e(p.get("label", "Back to top"))}">'
+            f'<i class="bi {icon_name}" aria-hidden="true"></i></a>{script}'
+        )
+
+    def _r_header(self, n):
+        p = self._p(n)
+        cls = _classes(p.get("bg"), p.get("textColor"), p.get("align"), p.get("classes"))
+        return (
+            f'<header class="{cls}">'
+            f'<div class="container">'
+            f'<h1 class="display-5 fw-bold">{_e(p.get("title", ""))}</h1>'
+            f'<p class="fs-5">{_e(p.get("subtitle", ""))}</p>'
+            f"</div></header>"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Top-level API
@@ -1171,6 +1418,21 @@ def render_page(
         f'<meta name="description" content="{_e(description)}">\n' if description else ""
     )
 
+    # Auto-init script for tooltips / popovers (both opt-in via data attrs).
+    # Scrollspy self-initialises via the data-bs-spy attribute, but we still
+    # include it here so our generated sites "just work" out of the box.
+    init_js = (
+        "<script>"
+        "document.addEventListener('DOMContentLoaded',function(){"
+        "if(!window.bootstrap)return;"
+        "document.querySelectorAll('[data-bs-toggle=\"tooltip\"]')"
+        ".forEach(function(el){new bootstrap.Tooltip(el);});"
+        "document.querySelectorAll('[data-bs-toggle=\"popover\"]')"
+        ".forEach(function(el){new bootstrap.Popover(el);});"
+        "});"
+        "</script>"
+    )
+
     return (
         f"<!doctype html>\n"
         f'<html lang="{_e(language)}" data-bs-theme="{_e(color_mode)}">\n'
@@ -1186,6 +1448,7 @@ def render_page(
         f"<body>\n"
         f"{body}\n"
         f'<script src="{BOOTSTRAP_JS}"></script>\n'
+        f"{init_js}\n"
         f"{extra_body}\n"
         f"</body>\n"
         f"</html>\n"

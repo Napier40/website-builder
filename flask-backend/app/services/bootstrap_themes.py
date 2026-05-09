@@ -9,14 +9,14 @@ Used by:
 Source: https://bootswatch.com/  (MIT licensed)
 """
 
-BOOTSTRAP_VERSION = "5.3.3"
+BOOTSTRAP_VERSION = "5.3.8"
 
 # Direct-from-CDN assets (jsdelivr mirrors npm)
 BOOTSTRAP_CSS = f"https://cdn.jsdelivr.net/npm/bootstrap@{BOOTSTRAP_VERSION}/dist/css/bootstrap.min.css"
 BOOTSTRAP_JS  = f"https://cdn.jsdelivr.net/npm/bootstrap@{BOOTSTRAP_VERSION}/dist/js/bootstrap.bundle.min.js"
 BOOTSTRAP_ICONS_CSS = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
 
-BOOTSWATCH_VERSION = "5.3.3"
+BOOTSWATCH_VERSION = "5.3.8"
 BOOTSWATCH_BASE    = f"https://cdn.jsdelivr.net/npm/bootswatch@{BOOTSWATCH_VERSION}/dist"
 
 

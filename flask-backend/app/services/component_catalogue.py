@@ -760,6 +760,181 @@ TYPES = {
         },
         "allows_children": False,
     },
+    "clearfix": {
+        "category": "Helpers",
+        "label":    "Clearfix",
+        "icon":     "bi-arrows-collapse",
+        "props": {
+            "classes": {"kind": TEXT, "default": "", "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "stretched-link": {
+        "category": "Helpers",
+        "label":    "Stretched Link",
+        "icon":     "bi-arrows-fullscreen",
+        "props": {
+            "text":    {"kind": TEXT, "default": "Go somewhere", "label": "Link text"},
+            "href":    {"kind": URL,  "default": "#",            "label": "URL"},
+            "classes": {"kind": TEXT, "default": "stretched-link", "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "text-truncate": {
+        "category": "Helpers",
+        "label":    "Truncated Text",
+        "icon":     "bi-text-paragraph",
+        "props": {
+            "text":    {"kind": RICH, "default": "Praeterea iter est quasdam res quas ex communi opinione bonas est", "label": "Text"},
+            "width":   {"kind": TEXT, "default": "250px", "label": "Max width (CSS)"},
+            "classes": {"kind": TEXT, "default": "", "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "icon-link": {
+        "category": "Helpers",
+        "label":    "Icon Link",
+        "icon":     "bi-link-45deg",
+        "props": {
+            "text":    {"kind": TEXT, "default": "Icon link", "label": "Text"},
+            "icon":    {"kind": ICON, "default": "box-arrow-up-right", "label": "Icon"},
+            "href":    {"kind": URL,  "default": "#",         "label": "URL"},
+            "hover":   {"kind": BOOL, "default": True,        "label": "Hover effect"},
+            "classes": {"kind": TEXT, "default": "",          "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # CONTENT (extras)
+    # ─────────────────────────────────────────────────────────────────────────────
+    "table": {
+        "category": "Content",
+        "label":    "Table",
+        "icon":     "bi-table",
+        "props": {
+            "headers":   {"kind": RICH, "default": "Name\nRole\nCity", "label": "Header cells (one per line)"},
+            "rows":      {"kind": RICH, "default": "Alice::Engineer::London\nBob::Designer::Berlin\nCarol::Manager::Paris", "label": "Rows (cell::cell::cell, one row per line)"},
+            "variant":   {"kind": ENUM, "default": "", "options": ["", "table-primary", "table-secondary", "table-success", "table-danger", "table-warning", "table-info", "table-light", "table-dark"], "label": "Colour variant"},
+            "striped":   {"kind": BOOL, "default": False, "label": "Striped rows"},
+            "hover":     {"kind": BOOL, "default": True,  "label": "Hover highlight"},
+            "bordered":  {"kind": BOOL, "default": False, "label": "Bordered"},
+            "borderless":{"kind": BOOL, "default": False, "label": "Borderless"},
+            "small":     {"kind": BOOL, "default": False, "label": "Small"},
+            "responsive":{"kind": BOOL, "default": True,  "label": "Responsive wrapper"},
+            "caption":   {"kind": TEXT, "default": "",    "label": "Caption (optional)"},
+            "classes":   {"kind": TEXT, "default": "",    "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # COMPONENTS (extras — Collapse / Tooltip / Popover / Scrollspy / Navs /
+    # Card group / Sticky header / Back-to-top)
+    # ─────────────────────────────────────────────────────────────────────────────
+    "collapse": {
+        "category": "Components",
+        "label":    "Collapse (toggle)",
+        "icon":     "bi-chevron-expand",
+        "props": {
+            "buttonText": {"kind": TEXT, "default": "Toggle content", "label": "Button text"},
+            "variant":    {"kind": ENUM, "default": "primary", "options": BS_COLORS + [f"outline-{c}" for c in BS_COLORS], "label": "Button variant"},
+            "body":       {"kind": RICH, "default": "Some placeholder content for the collapse component. This panel is hidden by default but revealed when the user activates the relevant trigger.", "label": "Body"},
+            "openByDefault": {"kind": BOOL, "default": False, "label": "Open by default"},
+            "horizontal": {"kind": BOOL, "default": False, "label": "Horizontal"},
+            "classes":    {"kind": TEXT, "default": "",    "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "tooltip": {
+        "category": "Components",
+        "label":    "Tooltip (on button)",
+        "icon":     "bi-chat-square-text",
+        "props": {
+            "text":      {"kind": TEXT, "default": "Hover me",        "label": "Button text"},
+            "tooltip":   {"kind": TEXT, "default": "Tooltip content", "label": "Tooltip content"},
+            "placement": {"kind": ENUM, "default": "top", "options": ["top", "right", "bottom", "left"], "label": "Placement"},
+            "variant":   {"kind": ENUM, "default": "secondary", "options": BS_COLORS + [f"outline-{c}" for c in BS_COLORS], "label": "Button variant"},
+            "classes":   {"kind": TEXT, "default": "", "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "popover": {
+        "category": "Components",
+        "label":    "Popover (on button)",
+        "icon":     "bi-chat-right-text",
+        "props": {
+            "text":      {"kind": TEXT, "default": "Click me",                 "label": "Button text"},
+            "title":     {"kind": TEXT, "default": "Popover title",            "label": "Popover title"},
+            "body":      {"kind": RICH, "default": "And here's some amazing content. It's very engaging. Right?", "label": "Popover body"},
+            "placement": {"kind": ENUM, "default": "right", "options": ["top", "right", "bottom", "left"], "label": "Placement"},
+            "trigger":   {"kind": ENUM, "default": "click", "options": ["click", "hover", "focus"], "label": "Trigger"},
+            "variant":   {"kind": ENUM, "default": "secondary", "options": BS_COLORS + [f"outline-{c}" for c in BS_COLORS], "label": "Button variant"},
+            "classes":   {"kind": TEXT, "default": "", "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "scrollspy": {
+        "category": "Components",
+        "label":    "Scrollspy Nav",
+        "icon":     "bi-list-ol",
+        "props": {
+            "items":   {"kind": RICH, "default": "First section::First section::Some text about the first section\nSecond section::Second section::Some text about the second section\nThird section::Third section::Some text about the third section", "label": "Sections (nav_label::heading::body, one per line)"},
+            "height":  {"kind": TEXT, "default": "300px", "label": "Scroll container height"},
+            "classes": {"kind": TEXT, "default": "",     "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "nav": {
+        "category": "Components",
+        "label":    "Nav (plain)",
+        "icon":     "bi-list",
+        "props": {
+            "items":   {"kind": RICH, "default": "Active::/::active\nLink::/link1\nLink::/link2\nDisabled::#::disabled", "label": "Items (label::href::state, one per line)"},
+            "style":   {"kind": ENUM, "default": "", "options": ["", "nav-pills", "nav-tabs", "nav-underline"], "label": "Style"},
+            "align":   {"kind": ENUM, "default": "", "options": ["", "justify-content-center", "justify-content-end"], "label": "Align"},
+            "vertical":{"kind": BOOL, "default": False, "label": "Vertical (flex-column)"},
+            "fill":    {"kind": BOOL, "default": False, "label": "Fill"},
+            "classes": {"kind": TEXT, "default": "",    "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "card-group": {
+        "category": "Components",
+        "label":    "Card Group",
+        "icon":     "bi-grid-3x2-gap",
+        "props": {
+            "layout":  {"kind": ENUM, "default": "card-group", "options": ["card-group", "row-cards"], "label": "Layout"},
+            "classes": {"kind": TEXT, "default": "",           "label": "Extra CSS classes"},
+        },
+        "allows_children": ["card"],
+    },
+    "back-to-top": {
+        "category": "Components",
+        "label":    "Back to Top Button",
+        "icon":     "bi-arrow-up-circle",
+        "props": {
+            "label":   {"kind": TEXT, "default": "Back to top",      "label": "ARIA label"},
+            "icon":    {"kind": ICON, "default": "arrow-up",         "label": "Icon"},
+            "variant": {"kind": ENUM, "default": "primary",          "options": BS_COLORS, "label": "Colour"},
+            "classes": {"kind": TEXT, "default": "",                 "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
+    "header": {
+        "category": "Components",
+        "label":    "Page Header",
+        "icon":     "bi-window-fullscreen",
+        "props": {
+            "title":    {"kind": TEXT, "default": "Welcome to our site", "label": "Title"},
+            "subtitle": {"kind": RICH, "default": "A simple, bold header to introduce a page.", "label": "Subtitle"},
+            "bg":       {"kind": ENUM, "default": "bg-body-tertiary", "options": ["bg-body-tertiary"] + [f"bg-{c}" for c in BS_COLORS], "label": "Background"},
+            "textColor":{"kind": ENUM, "default": "",                 "options": [""] + [f"text-{c}" for c in BS_COLORS], "label": "Text colour"},
+            "align":    {"kind": ENUM, "default": "text-center",      "options": ["text-start", "text-center", "text-end"], "label": "Align"},
+            "classes":  {"kind": TEXT, "default": "py-4",             "label": "Extra CSS classes"},
+        },
+        "allows_children": False,
+    },
 }
 
 
