@@ -19,7 +19,10 @@ from app import create_app
 app = create_app(os.environ.get('FLASK_ENV', 'development'))
 
 if __name__ == '__main__':
-    port  = int(os.environ.get('PORT', 5000))
+    # Accept PORT (preferred) or FLASK_RUN_PORT (legacy / flask CLI convention).
+    # This way both `python run.py` and `flask run` honour the same env var.
+    port_env = os.environ.get('PORT') or os.environ.get('FLASK_RUN_PORT') or '5000'
+    port  = int(port_env)
     debug = os.environ.get('FLASK_DEBUG', '1') == '1'
 
     db_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')

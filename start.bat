@@ -1,13 +1,13 @@
 @echo off
 REM ===========================================================
 REM  Website Builder - Unified Startup (Windows)
-REM  Starts Flask backend (port 5050) + React frontend (port 3000)
+REM  Starts Flask backend (port 5000) + React frontend (port 3000)
 REM  Each service opens in its own console window.
 REM ===========================================================
 
 cd /d "%~dp0"
 
-set BACKEND_PORT=5050
+set BACKEND_PORT=5000
 set FRONTEND_PORT=3000
 
 echo.
@@ -97,7 +97,7 @@ REM ---------- Start both services in separate windows ----------
 echo.
 echo [3/3] Starting services...
 
-start "Website Builder - BACKEND (port %BACKEND_PORT%)" cmd /k "cd /d %~dp0flask-backend && call venv\Scripts\activate.bat && set FLASK_RUN_PORT=%BACKEND_PORT% && python run.py"
+start "Website Builder - BACKEND (port %BACKEND_PORT%)" cmd /k "cd /d %~dp0flask-backend && call venv\Scripts\activate.bat && set PORT=%BACKEND_PORT% && set FLASK_RUN_PORT=%BACKEND_PORT% && python run.py"
 
 timeout /t 3 /nobreak >nul
 
