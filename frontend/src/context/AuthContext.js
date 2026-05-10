@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 export const AuthContext = createContext();
@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Load user
-  const loadUser = async () => {
+  const loadUser = useCallback(async () => {
     try {
       if (token) {
         const res = await axios.get('/api/auth/me');
@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
       setError(err.response?.data?.message || 'Authentication error');
     }
     setLoading(false);
-  };
+  }, [token]);
 
   // Register user
   const register = async (formData) => {
@@ -111,10 +111,10 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   };
 
-  // Load user on initial render
+  // Load user on initial render (and whenever the token changes)
   useEffect(() => {
     loadUser();
-  }, []);
+  }, [loadUser]);
 
   return (
     <AuthContext.Provider
