@@ -60,7 +60,7 @@ const Button = styled(Link)`
 `;
 
 const Header = () => {
-  const { isAuthenticated, user, logout } = useContext(AuthContext);
+  const { isAuthenticated, logout } = useContext(AuthContext);
 
   const authLinks = (
     <>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import axios from 'axios';
@@ -198,11 +198,7 @@ const WebsiteBuilder = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  useEffect(() => {
-    fetchWebsite();
-  }, [id]);
-  
-  const fetchWebsite = async () => {
+  const fetchWebsite = useCallback(async () => {
     try {
       setLoading(true);
       const res = await axios.get(`/api/websites/${id}`);
@@ -217,7 +213,11 @@ const WebsiteBuilder = () => {
       setError('Failed to load website');
       setLoading(false);
     }
-  };
+  }, [id]);
+  
+  useEffect(() => {
+    fetchWebsite();
+  }, [fetchWebsite]);
   
   const handlePageChange = (e) => {
     const pageId = parseInt(e.target.value, 10);
