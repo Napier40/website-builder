@@ -1,15 +1,13 @@
 @echo off
-REM ─────────────────────────────────────────────────────────────────────────
-REM Website Builder — One-command startup (Windows)
-REM
-REM Starts BOTH the Flask backend (port 5000) and the React frontend (3000)
-REM together. Each service opens in its own console window.
-REM ─────────────────────────────────────────────────────────────────────────
+REM ===========================================================
+REM  Website Builder - Unified Startup (Windows)
+REM  Starts Flask backend (port 5050) + React frontend (port 3000)
+REM  Each service opens in its own console window.
+REM ===========================================================
 
-setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-set BACKEND_PORT=5000
+set BACKEND_PORT=5050
 set FRONTEND_PORT=3000
 
 echo.
@@ -19,7 +17,7 @@ echo          Flask backend + React frontend
 echo ==========================================================
 echo.
 
-REM --- Pre-flight checks ---
+REM ---------- Pre-flight checks ----------
 where python >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python is not installed or not on PATH.
@@ -34,45 +32,73 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM --- Port conflict detection ---
-call :check_port %BACKEND_PORT%  Backend
-call :check_port %FRONTEND_PORT% Frontend
-
-REM --- Backend setup ---
+REM ---------- Backend setup ----------
 echo.
 echo [1/3] Setting up Flask backend...
 cd flask-backend
-if not exist "venv" (
+if not exist "venv\Scripts\python.exe" (
     echo       Creating Python virtual environment...
     python -m venv venv
+    if errorlevel 1 (
+        echo [ERROR] Failed to create virtual environment.
+        cd ..
+        pause
+        exit /b 1
+    )
 )
-call venv\Scripts\activate.bat
-pip install -q -r ..\requirements.txt
+
+call "venv\Scripts\activate.bat"
+if errorlevel 1 (
+    echo [ERROR] Failed to activate virtual environment.
+    cd ..
+    pause
+    exit /b 1
+)
+
+echo       Installing Python dependencies...
+pip install -q -r requirements.txt
+if errorlevel 1 (
+    echo [ERROR] Failed to install Python dependencies.
+    cd ..
+    pause
+    exit /b 1
+)
+
 if not exist ".env" (
     if exist ".env.example" (
         copy /y .env.example .env >nul
     )
 )
+
 echo       OK - Backend ready
 cd ..
 
-REM --- Frontend setup ---
+REM ---------- Frontend setup ----------
 echo.
 echo [2/3] Setting up React frontend...
 cd frontend
 if not exist "node_modules" (
-    echo       Installing npm packages (first run only, may take a few minutes)...
+    echo       Installing npm packages ^(first run only, may take a few minutes^)...
     call npm install --silent --no-audit --no-fund
+    if errorlevel 1 (
+        echo [ERROR] Failed to install npm packages.
+        cd ..
+        pause
+        exit /b 1
+    )
 )
 echo       OK - Frontend ready
 cd ..
 
-REM --- Start both services in separate windows ---
+REM ---------- Start both services in separate windows ----------
 echo.
 echo [3/3] Starting services...
-start "Website Builder - BACKEND (port %BACKEND_PORT%)"  cmd /k "cd flask-backend && call venv\Scripts\activate.bat && python run.py"
+
+start "Website Builder - BACKEND (port %BACKEND_PORT%)" cmd /k "cd /d %~dp0flask-backend && call venv\Scripts\activate.bat && set FLASK_RUN_PORT=%BACKEND_PORT% && python run.py"
+
 timeout /t 3 /nobreak >nul
-start "Website Builder - FRONTEND (port %FRONTEND_PORT%)" cmd /k "cd frontend && set BROWSER=none&& npm start"
+
+start "Website Builder - FRONTEND (port %FRONTEND_PORT%)" cmd /k "cd /d %~dp0frontend && set BROWSER=none&& set REACT_APP_BACKEND_URL=http://localhost:%BACKEND_PORT%&& npm start"
 
 echo.
 echo ==========================================================
@@ -86,30 +112,8 @@ echo.
 echo   Backend API:  http://localhost:%BACKEND_PORT%/api/health
 echo   Admin login:  admin@websitebuilder.com / Admin@1234
 echo.
-echo   To stop: close both console windows or run "npm run stop"
+echo   To stop: close both console windows
 echo.
 echo ==========================================================
 echo.
 pause
-goto :eof
-
-REM ──────────────────────────────────────────────────────────
-:check_port
-set _port=%~1
-set _name=%~2
-netstat -an | findstr /C:":%_port% " | findstr /C:"LISTENING" >nul
-if not errorlevel 1 (
-    echo [WARN] Port %_port% ^(%_name%^) is already in use.
-    set /p _ans="       Kill the process and continue? (y/N): "
-    if /i "!_ans!"=="y" (
-        for /f "tokens=5" %%p in ('netstat -ano ^| findstr /C:":%_port% " ^| findstr /C:"LISTENING"') do (
-            taskkill /F /PID %%p >nul 2>&1
-        )
-        echo       Port %_port% freed.
-    ) else (
-        echo [ERROR] Aborting. Free port %_port% and try again.
-        pause
-        exit /b 1
-    )
-)
-goto :eof
