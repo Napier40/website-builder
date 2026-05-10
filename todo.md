@@ -34,12 +34,29 @@ starter-site library. Keep existing auth / subscriptions / Stripe intact.
 - [ ] Undo/redo stack + auto-save (debounced)
 - [ ] Replace the old HTML-textarea editor entirely
 
-## Phase 4 — Starter-site catalogue
-- [ ] Design 10+ starter templates as JSON trees:
+## Phase 4 — Starter-site catalogue + Multilingual Support
+- [x] Design 10+ starter templates as JSON trees:
   landing / portfolio / restaurant / business / blog / resume
   / e-commerce / event / non-profit / coming-soon
-- [ ] `GET /api/starters` → catalogue; `POST /api/websites/from-starter` clones one
-- [ ] Thumbnails (rendered offline, stored statically)
+- [x] `GET /api/templates` → catalogue (filter by category)
+- [x] `POST /api/templates/:id/clone` → clone into user's websites
+- [x] Add Translation model + `/api/i18n` endpoints
+- [x] Seed 11 starter templates (landing, portfolio, blog, etc.) + 5 existing = 16 total
+- [x] Seed 144 English translations (6 namespaces) — English is principal/fallback language
+- [x] Add test file for translations + templates (20 tests, need minor fixes to response format assertions)
+- [ ] Frontend work:
+  - [ ] Add i18n setup (react-i18next or lightweight solution)
+  - [ ] LanguageSwitcher component
+  - [ ] Apply i18n to BuilderShell UI strings
+  - [ ] Create TemplateGallery page
+  - [ ] TemplateCard component
+  - [ ] "Start from template" option in website creation modal
+- [ ] VS Code dev environment setup:
+  - [ ] Create .vscode/launch.json for Flask + React debugging
+  - [ ] Create .vscode/settings.json for Python + ESLint configs
+  - [ ] Add tasks.json for backend + frontend start commands
+  - [ ] Update README with VS Code setup instructions
+- [ ] DO NOT publish or deploy — for local VS Code testing only
 
 ## Phase 5 — Theme picker UI
 - [ ] Theme picker modal listing all 27 themes with live preview cards

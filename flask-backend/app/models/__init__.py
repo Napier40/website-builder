@@ -10,6 +10,7 @@ from app.models.audit_log import AuditLog
 from app.models.moderation import Moderation
 from app.models.plugin import Plugin
 from app.models.template import Template
+from app.models.translation import Translation
 
 __all__ = [
     'User',
@@ -21,4 +22,5 @@ __all__ = [
     'Moderation',
     'Plugin',
     'Template',
+    'Translation',
 ]

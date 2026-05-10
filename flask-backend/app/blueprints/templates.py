@@ -134,3 +134,100 @@ def apply_template(template_id, website_id):
         data={'website': website.to_dict()},
         message=f"Template '{template.display_name}' applied to website",
     )
+
+
+@templates_bp.route('/clone/<int:template_id>', methods=['POST'])
+@jwt_required_custom
+def clone_template(template_id):
+    """
+    Clone a template into a new website for the current user.
+    Creates a new website with all pages from the template.
+    Request body:
+        - name (required): human-readable website name
+        - subdomain (required): unique subdomain
+    """
+    template = Template.find_by_id(template_id)
+    if not template:
+        return error_response('Template not found', 404)
+
+    data = request.get_json(silent=True) or {}
+    missing = validate_required_fields(data, ['name', 'subdomain'])
+    if missing:
+        return error_response(f'Missing required fields: {", ".join(missing)}', 400)
+
+    name = data['name'].strip()
+    subdomain = data['subdomain'].strip().lower()
+
+    # Check if subdomain is taken
+    if Website.subdomain_exists(subdomain):
+        return error_response(f'Subdomain "{subdomain}" is already taken', 409)
+
+    # Get template content
+    template_content = template.get_content()
+
+    # Import Page model
+    from app.models.website import Page
+
+    try:
+        # Create new website from template
+        website = Website(
+            name=name,
+            subdomain=subdomain,
+            user_id=g.current_user.id,
+            template=template.name,
+            theme=template_content.get('theme', 'default') if 'theme' in template_content else 'default',
+            is_published=False,
+        )
+        from app.database import db
+        db.session.add(website)
+        db.session.flush()  # Get website.id before adding pages
+
+        # Clone pages from template
+        template_pages = template_content.get('pages', [])
+        if not template_pages:
+            # If no pages in template content, create default home page
+            home = Page(
+                website_id=website.id,
+                title='Home',
+                slug='home',
+                order=0,
+            )
+            if 'content' in template_content:
+                home.content = template_content['content']
+            if 'tree' in template_content:
+                home.tree = template_content['tree']
+            db.session.add(home)
+        else:
+            # Clone all pages from template
+            for idx, page_data in enumerate(template_pages):
+                page = Page(
+                    website_id=website.id,
+                    title=page_data.get('title', f'Page {idx + 1}'),
+                    slug=page_data.get('slug', f'page-{idx + 1}'),
+                    content=page_data.get('content', ''),
+                    order=idx,
+                )
+                if 'tree' in page_data:
+                    page.tree = page_data['tree']
+                db.session.add(page)
+
+        db.session.commit()
+        template.increment_usage()
+
+        AuditLog.create_log(
+            user_id=g.current_user.id,
+            action='CREATE',
+            resource_model='Website',
+            resource_id=website.id,
+            description=f'Cloned website from template "{template.display_name}"',
+        )
+
+        return success_response(
+            data={'website': website.to_dict()},
+            message=f'Website created from template "{template.display_name}"',
+            status_code=201,
+        )
+    except Exception as e:
+        from app.database import db
+        db.session.rollback()
+        return error_response(f'Failed to clone template: {e}', 500)

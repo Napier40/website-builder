@@ -302,3 +302,53 @@ See [docs/FLASK_API.md](docs/FLASK_API.md) for full documentation.
 ## 📄 License
 
 MIT License - see LICENSE file for details.
+## 🆕 Updated VS Code Setup
+
+This project includes pre-configured VS Code settings for optimal development experience in the `.vscode/` directory.
+
+### Opening in VS Code
+
+Open the **root** `website-builder/` directory (not just `flask-backend/`) as the workspace in VS Code to enable full-stack debugging.
+
+### Recommended Extensions
+
+- **Python** (ms-python.python) — Python language support
+- **Pylance** (ms-python.vscode-pylance) — Fast Python IntelliSense
+- **ESLint** (dbaeumer.vscode-eslint) — JavaScript/React linting
+
+### Available Tasks (Ctrl+Shift+P -> "Tasks: Run Task")
+
+- `Flask: Install Dependencies` — Install Python packages
+- `Flask: Seed Database` — Seed starter templates
+- `Flask: Seed Translations` — Seed English translations
+- `Flask: Run Tests` — Run pytest test suite
+- `Flask: Start Backend Server` — Start Flask on port 5050
+- `React: Install Dependencies` — Install npm packages
+- `React: Start Dev Server` — Start React on port 3000
+- `Full Stack: Start Both Servers` — Start both in parallel
+- `Development: Seed and Start` — Seed tables and start both servers
+
+### Debug Configurations (F5)
+
+- `Flask: Debug Backend` — Debug Flask with breakpoints
+- `Flask: Run Backend (no debug)` — Run Flask normally
+
+### Pre-configured Settings
+
+- Python interpreter: `flask-backend/venv/bin/python` (auto-selected)
+- Test framework: pytest, runs `flask-backend/tests/`
+- ESLint: enabled for frontend, auto-fix on save
+- Excluded files: node_modules, venv, __pycache__, build, dist, website_builder.db
+
+### First-time Setup
+
+If this is your first time running the application:
+
+1. Run task: **Development: Seed and Start**
+2. Or manually from terminal:
+   ```bash
+   cd flask-backend
+   python seed_templates.py
+   python seed_translations.py
+   python run.py  # In separate terminal: cd frontend && npm start
+   ```

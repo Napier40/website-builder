@@ -1,0 +1,201 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Flask: Install Dependencies",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m", "pip", "install", "-r", "requirements.txt"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/flask-backend"
+      },
+      "problemMatcher": [],
+      "group": "build",
+      "detail": "Install Flask backend Python dependencies"
+    },
+    {
+      "label": "Flask: Seed Database",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "seed_templates.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/flask-backend"
+      },
+      "dependsOn": [
+        "Flask: Install Dependencies"
+      ],
+      "problemMatcher": [],
+      "group": "build",
+      "detail": "Seed starter templates and translations"
+    },
+    {
+      "label": "Flask: Seed Translations",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "seed_translations.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/flask-backend"
+      },
+      "dependsOn": [
+        "Flask: Install Dependencies"
+      ],
+      "problemMatcher": [],
+      "group": "build",
+      "detail": "Seed English translations"
+    },
+    {
+      "label": "Flask: Run Tests",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "-m", "pytest", "-v"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/flask-backend"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "detail": "Run pytest test suite"
+    },
+    {
+      "label": "Flask: Start Backend Server",
+      "type": "shell",
+      "command": "python",
+      "args": [
+        "run.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/flask-backend",
+        "env": {
+          "FLASK_APP": "run.py",
+          "FLASK_ENV": "development",
+          "FLASK_RUN_PORT": "5050",
+          "DATABASE_URL": "sqlite:///website_builder.db"
+        }
+      },
+      "dependsOn": [
+        "Flask: Install Dependencies"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^(.*):(\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Running on*",
+          "endsPattern": ".*Debugger is active.*"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "detail": "Start Flask development server on port 5050"
+    },
+    {
+      "label": "React: Install Dependencies",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "install"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": [],
+      "group": "build",
+      "detail": "Install React frontend dependencies"
+    },
+    {
+      "label": "React: Start Dev Server",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "start"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend",
+        "env": {
+          "REACT_APP_BACKEND_URL": "http://localhost:5050"
+        }
+      },
+      "dependsOn": [
+        "React: Install Dependencies"
+      ],
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^(.*):(\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*Starting development server*",
+          "endsPattern": ".*Compiled successfully.*"
+        }
+      },
+      "detail": "Start React development server on port 3000"
+    },
+    {
+      "label": "React: Build Production",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run", "build"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "dependsOn": [
+        "React: Install Dependencies"
+      ],
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Build React for production"
+    },
+    {
+      "label": "Full Stack: Start Both Servers",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Flask: Start Backend Server",
+        "React: Start Dev Server"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "detail": "Start both Flask and React development servers"
+    },
+    {
+      "label": "Development: Seed and Start",
+      "dependsOn": [
+        "Flask: Seed Database",
+        "Flask: Seed Translations",
+        "Full Stack: Start Both Servers"
+      ],
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "Seed database and start both servers (first-time setup)"
+    }
+  ]
+}
