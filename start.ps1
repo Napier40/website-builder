@@ -1,6 +1,6 @@
 # ===========================================================
 #  Website Builder - Unified Startup (Windows PowerShell)
-#  Starts Flask backend (port 5050) + React frontend (port 3000)
+#  Starts Flask backend (port 5000) + React frontend (port 3000)
 #  Each service opens in its own PowerShell window.
 # ===========================================================
 #
@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 $ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir    = Join-Path $ScriptDir 'flask-backend'
 $FrontendDir   = Join-Path $ScriptDir 'frontend'
-$BackendPort   = 5050
+$BackendPort   = 5000
 $FrontendPort  = 3000
 
 function Write-Header([string]$Text) {
@@ -131,6 +131,7 @@ $backendCmd = @"
 `$Host.UI.RawUI.WindowTitle = 'Website Builder - BACKEND (port $BackendPort)'
 Set-Location '$BackendDir'
 & '$BackendDir\venv\Scripts\Activate.ps1'
+`$env:PORT = '$BackendPort'
 `$env:FLASK_RUN_PORT = '$BackendPort'
 python run.py
 "@

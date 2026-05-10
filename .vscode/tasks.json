@@ -95,7 +95,8 @@
         "env": {
           "FLASK_APP": "run.py",
           "FLASK_ENV": "development",
-          "FLASK_RUN_PORT": "5050",
+          "PORT": "5000",
+          "FLASK_RUN_PORT": "5000",
           "DATABASE_URL": "sqlite:///website_builder.db"
         }
       },
@@ -120,7 +121,7 @@
         "kind": "build",
         "isDefault": false
       },
-      "detail": "Start Flask development server on port 5050"
+      "detail": "Start Flask development server on port 5000"
     },
     {
       "label": "React: Install Dependencies",
@@ -146,7 +147,7 @@
       "options": {
         "cwd": "${workspaceFolder}/frontend",
         "env": {
-          "REACT_APP_BACKEND_URL": "http://localhost:5050"
+          "REACT_APP_BACKEND_URL": "http://localhost:5000"
         }
       },
       "dependsOn": [

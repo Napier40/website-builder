@@ -39,7 +39,7 @@ This will:
 2. Install all backend dependencies
 3. Install all frontend dependencies
 4. Launch **two separate console windows**:
-   - **BACKEND** on port 5050
+   - **BACKEND** on port 5000
    - **FRONTEND** on port 3000
 
 Then open http://localhost:3000 in your browser.
@@ -75,14 +75,14 @@ python seed_translations.py             # first time only (optional seed data)
 python run.py
 ```
 
-Keep this terminal open — backend runs on http://localhost:5050
+Keep this terminal open — backend runs on http://localhost:5000
 
 **Terminal 2 — Frontend:**
 
 ```powershell
 cd frontend
 npm install                             # first time only
-$env:REACT_APP_BACKEND_URL = "http://localhost:5050"
+$env:REACT_APP_BACKEND_URL = "http://localhost:5000"
 npm start
 ```
 
@@ -125,12 +125,12 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
-### Port 5050 or 3000 already in use
+### Port 5000 or 3000 already in use
 
 Find and kill the process:
 ```powershell
-# For backend (5050)
-netstat -ano | findstr :5050
+# For backend (5000)
+netstat -ano | findstr :5000
 taskkill /F /PID <PID>
 
 # For frontend (3000)
@@ -140,9 +140,9 @@ taskkill /F /PID <PID>
 
 ### Backend starts but frontend says "Network Error" / CORS
 
-The frontend expects the backend at `http://localhost:5050`. Make sure:
-- The backend window shows `Running on http://127.0.0.1:5050`
-- The frontend was started with `REACT_APP_BACKEND_URL=http://localhost:5050` (the start scripts do this automatically)
+The frontend expects the backend at `http://localhost:5000`. Make sure:
+- The backend window shows `Running on http://127.0.0.1:5000`
+- The frontend was started with `REACT_APP_BACKEND_URL=http://localhost:5000` (the start scripts do this automatically)
 
 ### `pip install` fails with SSL errors behind a corporate proxy
 
@@ -162,7 +162,7 @@ OneDrive usually works fine, but if you see strange file-locking errors:
 
 - **Default terminal:** In `Ctrl+Shift+P` → `Terminal: Select Default Profile`, pick **PowerShell** (not cmd).
 - **Python interpreter:** `Ctrl+Shift+P` → `Python: Select Interpreter` → choose `.\flask-backend\venv\Scripts\python.exe`.
-- **Debug Flask:** Press **F5** with `flask-backend\run.py` open — the included `.vscode\launch.json` is pre-configured for port 5050.
+- **Debug Flask:** Press **F5** with `flask-backend\run.py` open — the included `.vscode\launch.json` is pre-configured for port 5000.
 
 ---
 

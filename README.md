@@ -330,7 +330,7 @@ Open the **root** `website-builder/` directory (not just `flask-backend/`) as th
 - `Flask: Seed Database` — Seed starter templates
 - `Flask: Seed Translations` — Seed English translations
 - `Flask: Run Tests` — Run pytest test suite
-- `Flask: Start Backend Server` — Start Flask on port 5050
+- `Flask: Start Backend Server` — Start Flask on port 5000
 - `React: Install Dependencies` — Install npm packages
 - `React: Start Dev Server` — Start React on port 3000
 - `Full Stack: Start Both Servers` — Start both in parallel

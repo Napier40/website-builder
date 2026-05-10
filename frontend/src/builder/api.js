@@ -73,7 +73,7 @@ export async function unpublishWebsite(websiteId) {
  *  instead of proxying them. In production, REACT_APP_BACKEND_URL can be
  *  left empty so the same-origin URL is used. */
 export function previewUrl(websiteId, pageSlug, token) {
-  const base = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5050';
+  const base = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
   const path = `/api/websites/${websiteId}/preview${pageSlug ? '/' + pageSlug : ''}`;
   return token ? `${base}${path}?access_token=${encodeURIComponent(token)}`
                : `${base}${path}`;
