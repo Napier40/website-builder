@@ -22,19 +22,24 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Set axios default headers
-  if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  } else {
-    delete axios.defaults.headers.common['Authorization'];
-  }
+  // Keep axios Authorization header in sync with the token. This runs
+  // as an effect (not during render) so we don't violate React's
+  // no-side-effects-in-render rule, and so it re-runs whenever the
+  // token changes (login / logout / token-refresh).
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
 
   // Load user
   const loadUser = useCallback(async () => {
     try {
       if (token) {
         const res = await axios.get('/api/auth/me');
-        setUser(res.data.user);
+        setUser(res.data.data.user);
         setIsAuthenticated(true);
       }
     } catch (err) {
@@ -51,9 +56,10 @@ export const AuthProvider = ({ children }) => {
   const register = async (formData) => {
     try {
       const res = await axios.post('/api/auth/register', formData);
-      localStorage.setItem('token', res.data.token);
-      setToken(res.data.token);
-      await loadUser();
+      const token = res.data.data.token;
+      localStorage.setItem('token', token);
+      setToken(token);
+      // loadUser will run automatically via useEffect when token changes
       return { success: true };
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed');
@@ -65,13 +71,22 @@ export const AuthProvider = ({ children }) => {
   const login = async (formData) => {
     try {
       const res = await axios.post('/api/auth/login', formData);
-      localStorage.setItem('token', res.data.token);
-      setToken(res.data.token);
-      await loadUser();
+      const token = res.data.data.token;
+      const user  = res.data.data.user;
+      if (!token) {
+        throw new Error('Login response did not include a token');
+      }
+      localStorage.setItem('token', token);
+      // Set axios header immediately so the next /api/auth/me call authenticates
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      // Optimistically set the user so the UI can flip before loadUser confirms
+      setUser(user);
+      setIsAuthenticated(true);
+      setToken(token);  // also triggers loadUser via useEffect
       return { success: true };
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
-      return { success: false, error: err.response?.data?.message || 'Login failed' };
+      setError(err.response?.data?.message || err.message || 'Login failed');
+      return { success: false, error: err.response?.data?.message || err.message || 'Login failed' };
     }
   };
 
@@ -87,7 +102,7 @@ export const AuthProvider = ({ children }) => {
   const updateProfile = async (formData) => {
     try {
       const res = await axios.put('/api/auth/profile', formData);
-      setUser(res.data.user);
+      setUser(res.data.data.user);
       return { success: true };
     } catch (err) {
       setError(err.response?.data?.message || 'Update failed');

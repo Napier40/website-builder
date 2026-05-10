@@ -215,15 +215,15 @@ const Subscriptions = () => {
       
       // Fetch subscription plans
       const plansRes = await axios.get('/api/subscriptions');
-      setSubscriptionPlans(plansRes.data.plans);
+      setSubscriptionPlans(plansRes.data.data?.plans || []);
       
       // Fetch current subscription
       const currentSubRes = await axios.get('/api/subscriptions/current');
-      setCurrentSubscription(currentSubRes.data);
+      setCurrentSubscription(currentSubRes.data.data);
       
-      // Fetch payment history
+      // Fetch payment history (paginated: data is the array itself)
       const paymentsRes = await axios.get('/api/payments/history');
-      setPaymentHistory(paymentsRes.data.payments);
+      setPaymentHistory(Array.isArray(paymentsRes.data.data) ? paymentsRes.data.data : []);
       
       setLoading(false);
     } catch (err) {

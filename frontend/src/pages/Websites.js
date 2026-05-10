@@ -214,7 +214,9 @@ const Websites = () => {
     try {
       setLoading(true);
       const res = await axios.get('/api/websites');
-      setWebsites(res.data.websites);
+      // paginated_response puts the array directly in `data`
+      const list = Array.isArray(res.data.data) ? res.data.data : [];
+      setWebsites(list);
       setLoading(false);
     } catch (err) {
       setError('Failed to load websites');
@@ -283,7 +285,7 @@ const Websites = () => {
       const res = await axios.post('/api/websites', newWebsite);
       
       // Add new website to state
-      setWebsites([...websites, res.data.website]);
+      setWebsites([...websites, res.data.data.website]);
       
       // Reset form
       setNewWebsite({

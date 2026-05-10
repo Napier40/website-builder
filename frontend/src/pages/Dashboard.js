@@ -182,13 +182,13 @@ const Dashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch websites
+        // Fetch websites (paginated response: data is the array itself)
         const websitesRes = await axios.get('/api/websites');
-        setWebsites(websitesRes.data.websites);
+        setWebsites(Array.isArray(websitesRes.data.data) ? websitesRes.data.data : []);
         
-        // Fetch subscription
+        // Fetch subscription (success_response: payload is under data)
         const subscriptionRes = await axios.get('/api/subscriptions/current');
-        setSubscription(subscriptionRes.data);
+        setSubscription(subscriptionRes.data.data);
         
         setLoading(false);
       } catch (err) {

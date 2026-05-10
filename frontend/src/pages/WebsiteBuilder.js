@@ -202,11 +202,12 @@ const WebsiteBuilder = () => {
     try {
       setLoading(true);
       const res = await axios.get(`/api/websites/${id}`);
-      setWebsite(res.data.website);
+      const website = res.data.data.website;
+      setWebsite(website);
       
       // Set current page to home page or first page
-      const homePage = res.data.website.pages.find(page => page.slug === 'home');
-      setCurrentPage(homePage || res.data.website.pages[0]);
+      const homePage = website.pages.find(page => page.slug === 'home');
+      setCurrentPage(homePage || website.pages[0]);
       
       setLoading(false);
     } catch (err) {
