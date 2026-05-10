@@ -136,7 +136,7 @@ const Account = () => {
     try {
       setPaymentLoading(true);
       const res = await axios.get('/api/payments/payment-methods');
-      setPaymentMethods(res.data.paymentMethods);
+      setPaymentMethods(res.data.data.paymentMethods || []);
       setPaymentLoading(false);
     } catch (err) {
       setPaymentError('Failed to load payment methods');

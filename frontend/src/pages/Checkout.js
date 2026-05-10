@@ -154,16 +154,16 @@ const Checkout = () => {
       try {
         setLoading(true);
         
-        // Fetch subscription details
+        // Fetch subscription plan details
         const subRes = await axios.get(`/api/subscriptions/${id}`);
-        setSubscription(subRes.data.subscription);
+        setSubscription(subRes.data.data?.plan || null);
         
         // Create payment intent
         const intentRes = await axios.post('/api/payments/intent', {
           subscriptionId: id
         });
         
-        setClientSecret(intentRes.data.clientSecret);
+        setClientSecret(intentRes.data.data?.clientSecret);
         setLoading(false);
       } catch (err) {
         setError('Failed to load checkout data');

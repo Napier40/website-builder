@@ -295,37 +295,35 @@ function Admin() {
       };
 
       // Fetch stats
-      const statsRes = await fetch('/api/admin/stats', { headers });
+      const statsRes = await fetch('/api/admin/dashboard', { headers });
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        // Map API response correctly - API returns flat structure
+        const s = statsData.data?.stats || statsData.stats || statsData || {};
         setStats({
-          totalUsers: statsData.total_users || statsData.totalUsers || 0,
-          totalWebsites: statsData.total_websites || statsData.totalWebsites || 0,
-          publishedWebsites: statsData.published_websites || statsData.publishedWebsites || 0,
-          pendingModeration: statsData.pending_moderation || statsData.pendingModeration || 0
+          totalUsers:        s.totalUsers        || s.total_users        || 0,
+          totalWebsites:     s.totalWebsites     || s.total_websites     || 0,
+          publishedWebsites: s.publishedWebsites || s.published_websites || 0,
+          pendingModeration: s.pendingModeration || s.pending_moderation || 0
         });
       }
 
-      // Fetch users
+      // Fetch users (paginated_response: array in data)
       const usersRes = await fetch('/api/admin/users', { headers });
       if (usersRes.ok) {
         const usersData = await usersRes.json();
-        setUsers(usersData.users || usersData || []);
+        setUsers(Array.isArray(usersData.data) ? usersData.data
+               : usersData.users || []);
       }
 
-      // Fetch websites
-      const websitesRes = await fetch('/api/admin/websites', { headers });
-      if (websitesRes.ok) {
-        const websitesData = await websitesRes.json();
-        setWebsites(websitesData.websites || websitesData || []);
-      }
+      // Note: there is no /api/admin/websites endpoint yet — skip silently
+      setWebsites([]);
 
-      // Fetch moderation queue
+      // Fetch moderation queue (paginated_response: array in data)
       const modRes = await fetch('/api/admin/moderation', { headers });
       if (modRes.ok) {
         const modData = await modRes.json();
-        setModeration(modData.items || modData || []);
+        setModeration(Array.isArray(modData.data) ? modData.data
+                    : modData.items || []);
       }
     } catch (err) {
       console.error('Error fetching admin data:', err);
