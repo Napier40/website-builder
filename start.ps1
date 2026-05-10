@@ -90,6 +90,9 @@ try {
         Copy-Item '.env.example' '.env'
     }
 
+    Write-Host '    Ensuring admin user exists...'
+    & $venvPython seed_admin.py 2>&1 | Out-Null
+
     Write-Ok 'Backend ready'
 }
 catch {

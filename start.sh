@@ -146,6 +146,9 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
     cp .env.example .env
 fi
 
+log_info "  Ensuring admin user exists..."
+python seed_admin.py >/dev/null 2>&1 || true
+
 log_success "Backend ready."
 cd ..
 

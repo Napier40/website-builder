@@ -70,6 +70,9 @@ if not exist ".env" (
     )
 )
 
+echo       Ensuring admin user exists...
+python seed_admin.py >nul 2>&1
+
 echo       OK - Backend ready
 cd ..
 
