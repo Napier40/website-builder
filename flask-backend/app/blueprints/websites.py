@@ -9,7 +9,8 @@ from app.models.audit_log import AuditLog
 from app.middleware.auth  import jwt_required_custom, authorize
 from app.utils.helpers    import (success_response, error_response,
                                    paginated_response, get_pagination_params,
-                                   validate_required_fields, validate_subdomain)
+                                   validate_required_fields, validate_subdomain,
+                                   sanitize_input)
 
 websites_bp = Blueprint('websites', __name__)
 
@@ -64,13 +65,22 @@ def create_website():
     name = sanitize_input(data['name'], max_length=200)
     subdomain = sanitize_input(data['subdomain'], max_length=63).lower()
     template = sanitize_input(data.get('template', 'blank'), max_length=100)
-    
+    theme = sanitize_input(data.get('theme', 'default'), max_length=50) or 'default'
+
+    # Validate theme (falls back to 'default' silently for unknown slugs)
+    from app.services.bootstrap_themes import theme_exists
+    if not theme_exists(theme):
+        return error_response(
+            f"Unknown theme '{theme}'. See /api/catalogue/themes "
+            "for the list of valid slugs.", 400)
+
     try:
         website = Website.create(
             name=name,
             subdomain=subdomain,
             user_id=g.current_user.id,
             template=template,
+            theme=theme,
         )
     except ValueError as e:
         return error_response(str(e), 409)
@@ -103,9 +113,17 @@ def update_website(website_id):
 
     data    = request.get_json(silent=True) or {}
     allowed = {k: v for k, v in data.items()
-               if k in ('name', 'description', 'custom_domain', 'template')}
+               if k in ('name', 'description', 'custom_domain', 'template', 'theme')}
     if not allowed:
         return error_response('No valid fields to update', 400)
+
+    # Validate theme if present
+    if 'theme' in allowed:
+        from app.services.bootstrap_themes import theme_exists
+        if not theme_exists(allowed['theme']):
+            return error_response(
+                f"Unknown theme '{allowed['theme']}'. See /api/catalogue/themes "
+                "for the list of valid slugs.", 400)
 
     website.update(**allowed)
     AuditLog.create_log(user_id=g.current_user.id, action='UPDATE',

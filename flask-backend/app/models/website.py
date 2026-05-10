@@ -13,11 +13,31 @@ class Page(db.Model):
     website_id = db.Column(db.Integer, db.ForeignKey('websites.id', ondelete='CASCADE'), nullable=False)
     title      = db.Column(db.String(200), nullable=False, default='New Page')
     slug       = db.Column(db.String(200), nullable=False, default='new-page')
+    # Legacy raw-HTML content (still populated for backwards compatibility).
     content    = db.Column(db.Text, nullable=False, default='')
+    # New: JSON tree of the drag-and-drop canvas. When present this supersedes
+    # `content` and is passed to bootstrap_renderer.render_page(). Stored as
+    # TEXT (not native JSON) so SQLite + any RDBMS works identically.
+    tree_json  = db.Column(db.Text, nullable=True)
     order      = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
+
+    # ── Convenience accessors ──────────────────────────────────────────
+    @property
+    def tree(self):
+        """Parsed JSON tree (or None if the page is still raw-HTML only)."""
+        if not self.tree_json:
+            return None
+        try:
+            return json.loads(self.tree_json)
+        except (ValueError, TypeError):
+            return None
+
+    @tree.setter
+    def tree(self, value):
+        self.tree_json = json.dumps(value) if value is not None else None
 
     def to_dict(self):
         return {
@@ -25,6 +45,7 @@ class Page(db.Model):
             'title':     self.title,
             'slug':      self.slug,
             'content':   self.content,
+            'tree':      self.tree,
             'order':     self.order,
             'createdAt': self.created_at.isoformat() if self.created_at else None,
             'updatedAt': self.updated_at.isoformat() if self.updated_at else None,
@@ -40,6 +61,9 @@ class Website(db.Model):
     custom_domain     = db.Column(db.String(255),  nullable=True,  unique=True)
     user_id           = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     template          = db.Column(db.String(100),  nullable=False, default='blank')
+    # Bootstrap/Bootswatch theme slug (see app.services.bootstrap_themes.THEMES).
+    # "default" means the stock Bootstrap 5.3 stylesheet.
+    theme             = db.Column(db.String(50),   nullable=False, default='default')
     is_published      = db.Column(db.Boolean,      nullable=False, default=False)
     moderation_status = db.Column(db.String(20),   nullable=False, default='pending')  # pending|approved|rejected
     description       = db.Column(db.Text,         nullable=True)
@@ -61,7 +85,7 @@ class Website(db.Model):
     # ── Class methods ─────────────────────────────────────────────────────────
 
     @classmethod
-    def create(cls, name, subdomain, user_id, template='blank'):
+    def create(cls, name, subdomain, user_id, template='blank', theme='default'):
         """Create website with a default Home page."""
         if cls.query.filter_by(subdomain=subdomain.lower()).first():
             raise ValueError('Subdomain already taken')
@@ -71,6 +95,7 @@ class Website(db.Model):
             subdomain=subdomain.lower().strip(),
             user_id=user_id,
             template=template,
+            theme=theme or 'default',
         )
         db.session.add(website)
         db.session.flush()   # get website.id before adding pages
@@ -134,7 +159,7 @@ class Website(db.Model):
         db.session.commit()
 
     def update(self, **kwargs):
-        allowed = {'name', 'description', 'custom_domain', 'moderation_status', 'template'}
+        allowed = {'name', 'description', 'custom_domain', 'moderation_status', 'template', 'theme'}
         for key, value in kwargs.items():
             if key in allowed:
                 setattr(self, key, value)
@@ -161,6 +186,9 @@ class Website(db.Model):
         for key, value in kwargs.items():
             if key in allowed:
                 setattr(page, key, value)
+        # `tree` is special: coerce Python dict -> JSON string via the setter.
+        if 'tree' in kwargs:
+            page.tree = kwargs['tree']
         page.updated_at = datetime.now(timezone.utc)
         db.session.commit()
         return page
@@ -193,6 +221,7 @@ class Website(db.Model):
             'customDomain':     self.custom_domain,
             'userId':           self.user_id,
             'template':         self.template,
+            'theme':            self.theme,
             'isPublished':      self.is_published,
             'moderationStatus': self.moderation_status,
             'description':      self.description,

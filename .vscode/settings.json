@@ -1,0 +1,68 @@
+{
+  // Python configuration for Flask backend
+  "python.defaultInterpreterPath": "${workspaceFolder}/flask-backend/venv/bin/python",
+  "python.languageServer": "Pylance",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.linting.pylintArgs": [
+    "--load-plugins=pylint_flask_sqlalchemy"
+  ],
+  "python.testing.pytestEnabled": true,
+  "python.testing.pytestArgs": [
+    "flask-backend/tests",
+    "-v"
+  ],
+  "python.testing.unittestEnabled": false,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.pytest_cache": true,
+    "**/venv": true,
+    "**/node_modules": true,
+    "**/.next": true,
+    "**/build": true,
+    "website_builder.db": true
+  },
+
+  // ESLint configuration for React frontend
+  "eslint.enable": true,
+  "eslint.workingDirectories": [
+    "frontend"
+  ],
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "vue"
+  ],
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // VS Code specific settings
+  "terminal.integrated.defaultProfile.windows": "Git Bash",
+  "terminal.integrated.fontSize": 14,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 2000,
+
+  // File associations
+  "files.associations": {
+    "*.js": "javascript",
+    "*.jsx": "javascriptreact",
+    "*.py": "python"
+  },
+
+  // Search excludes
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/venv": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/dist": true,
+    "**/build": true
+  }
+}
