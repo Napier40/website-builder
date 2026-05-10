@@ -162,6 +162,14 @@ Default admin credentials (change in production):
 - Email: `admin@websitebuilder.com`
 - Password: `Admin@1234`
 
+This account is created automatically by `start.bat`/`start.sh`/`start.ps1`.
+If you're starting Flask manually, run `python seed_admin.py` (from
+`flask-backend/`) once to create it. Override with env vars if needed:
+
+```bash
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=YourSecret python seed_admin.py
+```
+
 ---
 
 ## 🔧 Configuration
